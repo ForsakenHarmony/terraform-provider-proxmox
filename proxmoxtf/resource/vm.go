@@ -47,6 +47,7 @@ const (
 	dvResourceVirtualEnvironmentVMCPUArchitecture                   = "x86_64"
 	dvResourceVirtualEnvironmentVMCPUCores                          = 1
 	dvResourceVirtualEnvironmentVMCPUHotplugged                     = 0
+	dvResourceVirtualEnvironmentVMCPUNUMA                           = false
 	dvResourceVirtualEnvironmentVMCPUSockets                        = 1
 	dvResourceVirtualEnvironmentVMCPUType                           = "qemu64"
 	dvResourceVirtualEnvironmentVMCPUUnits                          = 1024
@@ -63,6 +64,9 @@ const (
 	dvResourceVirtualEnvironmentVMDiskSpeedReadBurstable            = 0
 	dvResourceVirtualEnvironmentVMDiskSpeedWrite                    = 0
 	dvResourceVirtualEnvironmentVMDiskSpeedWriteBurstable           = 0
+	dvResourceVirtualEnvironmentVMEfiDiskDatastoreID                = "local-lvm"
+	dvResourceVirtualEnvironmentVMEfiDiskFileFormat                 = "qcow2"
+	dvResourceVirtualEnvironmentVMEfiDiskSize                       = "1M"
 	dvResourceVirtualEnvironmentVMInitializationDatastoreID         = "local-lvm"
 	dvResourceVirtualEnvironmentVMInitializationDNSDomain           = ""
 	dvResourceVirtualEnvironmentVMInitializationDNSServer           = ""
@@ -139,6 +143,7 @@ const (
 	mkResourceVirtualEnvironmentVMCPUCores                          = "cores"
 	mkResourceVirtualEnvironmentVMCPUFlags                          = "flags"
 	mkResourceVirtualEnvironmentVMCPUHotplugged                     = "hotplugged"
+	mkResourceVirtualEnvironmentVMCPUNUMA                           = "numa"
 	mkResourceVirtualEnvironmentVMCPUSockets                        = "sockets"
 	mkResourceVirtualEnvironmentVMCPUType                           = "type"
 	mkResourceVirtualEnvironmentVMCPUUnits                          = "units"
@@ -157,6 +162,10 @@ const (
 	mkResourceVirtualEnvironmentVMDiskSpeedReadBurstable            = "read_burstable"
 	mkResourceVirtualEnvironmentVMDiskSpeedWrite                    = "write"
 	mkResourceVirtualEnvironmentVMDiskSpeedWriteBurstable           = "write_burstable"
+	mkResourceVirtualEnvironmentVMEfiDisk                           = "efi_disk"
+	mkResourceVirtualEnvironmentVMEfiDiskDatastoreID                = "datastore_id"
+	mkResourceVirtualEnvironmentVMEfiDiskFileFormat                 = "file_format"
+	mkResourceVirtualEnvironmentVMEfiDiskSize                       = "size"
 	mkResourceVirtualEnvironmentVMHostPCI                           = "hostpci"
 	mkResourceVirtualEnvironmentVMHostPCIDevice                     = "device"
 	mkResourceVirtualEnvironmentVMHostPCIDeviceID                   = "id"
@@ -488,6 +497,12 @@ func VM() *schema.Resource {
 							Default:          dvResourceVirtualEnvironmentVMCPUHotplugged,
 							ValidateDiagFunc: validation.ToDiagFunc(validation.IntBetween(0, 2304)),
 						},
+						mkResourceVirtualEnvironmentVMCPUNUMA: {
+							Type:        schema.TypeBool,
+							Description: "Enable/disable NUMA.",
+							Optional:    true,
+							Default:     dvResourceVirtualEnvironmentVMCPUNUMA,
+						},
 						mkResourceVirtualEnvironmentVMCPUSockets: {
 							Type:             schema.TypeInt,
 							Description:      "The number of CPU sockets",
@@ -642,6 +657,48 @@ func VM() *schema.Resource {
 					},
 				},
 				MaxItems: 14,
+				MinItems: 0,
+			},
+			mkResourceVirtualEnvironmentVMEfiDisk: {
+				Type:        schema.TypeList,
+				Description: "The efidisk device",
+				Optional:    true,
+				ForceNew:    true,
+				DefaultFunc: func() (interface{}, error) {
+					return []interface{}{
+						map[string]interface{}{
+							mkResourceVirtualEnvironmentVMEfiDiskDatastoreID: dvResourceVirtualEnvironmentVMEfiDiskDatastoreID,
+							mkResourceVirtualEnvironmentVMEfiDiskSize:        dvResourceVirtualEnvironmentVMEfiDiskSize,
+						},
+					}, nil
+				},
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						mkResourceVirtualEnvironmentVMEfiDiskDatastoreID: {
+							Type:        schema.TypeString,
+							Description: "The datastore id",
+							Optional:    true,
+							Default:     dvResourceVirtualEnvironmentVMEfiDiskDatastoreID,
+						},
+						mkResourceVirtualEnvironmentVMEfiDiskFileFormat: {
+							Type:             schema.TypeString,
+							Description:      "The file format",
+							Optional:         true,
+							ForceNew:         true,
+							Computed:         true,
+							ValidateDiagFunc: getFileFormatValidator(),
+						},
+						mkResourceVirtualEnvironmentVMEfiDiskSize: {
+							Type:             schema.TypeString,
+							Description:      "The disk size in megabytes",
+							Optional:         true,
+							ForceNew:         true,
+							Default:          dvResourceVirtualEnvironmentVMEfiDiskSize,
+							ValidateDiagFunc: getFileSizeValidator(),
+						},
+					},
+				},
+				MaxItems: 1,
 				MinItems: 0,
 			},
 			mkResourceVirtualEnvironmentVMInitialization: {
@@ -1560,6 +1617,7 @@ func vmCreateClone(ctx context.Context, d *schema.ResourceData, m interface{}) d
 		cpuCores := cpuBlock[mkResourceVirtualEnvironmentVMCPUCores].(int)
 		cpuFlags := cpuBlock[mkResourceVirtualEnvironmentVMCPUFlags].([]interface{})
 		cpuHotplugged := cpuBlock[mkResourceVirtualEnvironmentVMCPUHotplugged].(int)
+		cpuNUMA := types2.CustomBool(cpuBlock[mkResourceVirtualEnvironmentVMCPUNUMA].(bool))
 		cpuSockets := cpuBlock[mkResourceVirtualEnvironmentVMCPUSockets].(int)
 		cpuType := cpuBlock[mkResourceVirtualEnvironmentVMCPUType].(string)
 		cpuUnits := cpuBlock[mkResourceVirtualEnvironmentVMCPUUnits].(int)
@@ -1581,6 +1639,7 @@ func vmCreateClone(ctx context.Context, d *schema.ResourceData, m interface{}) d
 			Flags: &cpuFlagsConverted,
 			Type:  cpuType,
 		}
+		updateBody.NUMAEnabled = &cpuNUMA
 		updateBody.CPUSockets = &cpuSockets
 		updateBody.CPUUnits = &cpuUnits
 
@@ -1710,6 +1769,7 @@ func vmCreateClone(ctx context.Context, d *schema.ResourceData, m interface{}) d
 	}
 
 	disk := d.Get(mkResourceVirtualEnvironmentVMDisk).([]interface{})
+	efiDisk := d.Get(mkResourceVirtualEnvironmentVMEfiDisk).([]interface{})
 
 	vmConfig, e := vmAPI.GetVM(ctx)
 	if e != nil {
@@ -1807,14 +1867,76 @@ func vmCreateClone(ctx context.Context, d *schema.ResourceData, m interface{}) d
 		if moveDisk {
 			moveDiskTimeout := d.Get(mkResourceVirtualEnvironmentVMTimeoutMoveDisk).(int)
 
-			e = vmAPI.MoveVMDisk(ctx, diskMoveBody, moveDiskTimeout)
+			e := vmAPI.MoveVMDisk(ctx, diskMoveBody, moveDiskTimeout)
 			if e != nil {
 				return diag.FromErr(e)
 			}
 		}
 
 		if diskSize > currentDiskInfo.Size.InGigabytes() {
-			e = vmAPI.ResizeVMDisk(ctx, diskResizeBody)
+			e := vmAPI.ResizeVMDisk(ctx, diskResizeBody)
+			if e != nil {
+				return diag.FromErr(e)
+			}
+		}
+	}
+
+	efiDiskInfo, e := vmGetEfiDisk(d, nil) // from the resource config
+	if e != nil {
+		return diag.FromErr(e)
+	}
+
+	for i := range efiDisk {
+		diskBlock := efiDisk[i].(map[string]interface{})
+		diskInterface := "efidisk0"
+		dataStoreID := diskBlock[mkResourceVirtualEnvironmentVMDiskDatastoreID].(string)
+		diskSize := diskBlock[mkResourceVirtualEnvironmentVMDiskSize].(int)
+
+		currentDiskInfo := vmConfig.EFIDisk
+		configuredDiskInfo := efiDiskInfo
+
+		if currentDiskInfo == nil {
+			diskUpdateBody := &vms.UpdateRequestBody{}
+
+			diskUpdateBody.EFIDisk = configuredDiskInfo
+
+			e = vmAPI.UpdateVM(ctx, diskUpdateBody)
+			if e != nil {
+				return diag.FromErr(e)
+			}
+
+			continue
+		}
+
+		if diskSize != currentDiskInfo.Size.InMegabytes() {
+			return diag.Errorf(
+				"resizing of efidisks is not supported.",
+			)
+		}
+
+		deleteOriginalDisk := types2.CustomBool(true)
+
+		diskMoveBody := &vms.MoveDiskRequestBody{
+			DeleteOriginalDisk: &deleteOriginalDisk,
+			Disk:               diskInterface,
+			TargetStorage:      dataStoreID,
+		}
+
+		moveDisk := false
+
+		if dataStoreID != "" {
+			moveDisk = true
+
+			if allDiskInfo[diskInterface] != nil {
+				fileIDParts := strings.Split(allDiskInfo[diskInterface].FileVolume, ":")
+				moveDisk = dataStoreID != fileIDParts[0]
+			}
+		}
+
+		if moveDisk {
+			moveDiskTimeout := d.Get(mkResourceVirtualEnvironmentVMTimeoutMoveDisk).(int)
+
+			e = vmAPI.MoveVMDisk(ctx, diskMoveBody, moveDiskTimeout)
 			if e != nil {
 				return diag.FromErr(e)
 			}
@@ -1895,6 +2017,7 @@ func vmCreateCustom(ctx context.Context, d *schema.ResourceData, m interface{}) 
 	cpuFlags := cpuBlock[mkResourceVirtualEnvironmentVMCPUFlags].([]interface{})
 	cpuHotplugged := cpuBlock[mkResourceVirtualEnvironmentVMCPUHotplugged].(int)
 	cpuSockets := cpuBlock[mkResourceVirtualEnvironmentVMCPUSockets].(int)
+	cpuNUMA := types2.CustomBool(cpuBlock[mkResourceVirtualEnvironmentVMCPUNUMA].(bool))
 	cpuType := cpuBlock[mkResourceVirtualEnvironmentVMCPUType].(string)
 	cpuUnits := cpuBlock[mkResourceVirtualEnvironmentVMCPUUnits].(int)
 
@@ -1902,6 +2025,31 @@ func vmCreateCustom(ctx context.Context, d *schema.ResourceData, m interface{}) 
 	diskDeviceObjects, err := vmGetDiskDeviceObjects(d, nil)
 	if err != nil {
 		return diag.FromErr(err)
+	}
+
+	efiDiskBlock := d.Get(mkResourceVirtualEnvironmentVMEfiDisk).([]interface{})
+	var efiDisk *vms.CustomEFIDisk
+	if len(efiDiskBlock) > 0 {
+		block := efiDiskBlock[0].(map[string]interface{})
+
+		datastoreID, _ := block[mkResourceVirtualEnvironmentVMEfiDiskDatastoreID].(string)
+		fileFormat, _ := block[mkResourceVirtualEnvironmentVMEfiDiskFileFormat].(string)
+		size, _ := block[mkResourceVirtualEnvironmentVMEfiDiskSize].(string)
+
+		if fileFormat == "" {
+			fileFormat = dvResourceVirtualEnvironmentVMEfiDiskFileFormat
+		}
+
+		diskSize, err := types.ParseDiskSize(size)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+
+		efiDisk = &vms.CustomEFIDisk{
+			Size:       &diskSize,
+			FileVolume: datastoreID,
+			Format:     &fileFormat,
+		}
 	}
 
 	virtioDeviceObjects := diskDeviceObjects["virtio"]
@@ -2071,10 +2219,12 @@ func vmCreateCustom(ctx context.Context, d *schema.ResourceData, m interface{}) 
 		CPUSockets:          &cpuSockets,
 		CPUUnits:            &cpuUnits,
 		DedicatedMemory:     &memoryDedicated,
+		EFIDisk:             efiDisk,
 		FloatingMemory:      &memoryFloating,
 		IDEDevices:          ideDevices,
 		KeyboardLayout:      &keyboardLayout,
 		NetworkDevices:      networkDeviceObjects,
+		NUMAEnabled:         &cpuNUMA,
 		OSType:              &operatingSystemType,
 		PCIDevices:          pciDeviceObjects,
 		SCSIHardware:        &scsiHardware,
@@ -2632,6 +2782,67 @@ func vmGetDiskDeviceObjects(
 	return diskDeviceObjects, nil
 }
 
+func vmGetEfiDisk(d *schema.ResourceData, disk []interface{}) (*vms.CustomEFIDisk, error) {
+	var efiDisk []interface{}
+
+	if disk != nil {
+		efiDisk = disk
+	} else {
+		efiDisk = d.Get(mkResourceVirtualEnvironmentVMEfiDisk).([]interface{})
+	}
+
+	var efiDiskConfig *vms.CustomEFIDisk
+
+	if len(efiDisk) > 0 {
+		efiDiskConfig = &vms.CustomEFIDisk{}
+
+		block := efiDisk[0].(map[string]interface{})
+		datastoreID, _ := block[mkResourceVirtualEnvironmentVMEfiDiskDatastoreID].(string)
+		fileFormat, _ := block[mkResourceVirtualEnvironmentVMEfiDiskFileFormat].(string)
+		size, _ := block[mkResourceVirtualEnvironmentVMEfiDiskSize].(string)
+
+		efiDiskConfig.FileVolume = fmt.Sprintf("%s:%d", datastoreID, size)
+		efiDiskConfig.Format = &fileFormat
+
+		diskSize, err := types.ParseDiskSize(size)
+		if err != nil {
+			return nil, err
+		}
+
+		efiDiskConfig.Size = &diskSize
+	}
+
+	return efiDiskConfig, nil
+}
+
+func vmGetEfiDiskAsStorageDevice(d *schema.ResourceData, disk []interface{}) (*vms.CustomStorageDevice, error) {
+	efiDisk, err := vmGetEfiDisk(d, disk)
+	if err != nil {
+		return nil, err
+	}
+
+	var storageDevice *vms.CustomStorageDevice
+
+	if efiDisk != nil {
+		id := "0"
+		baseDiskInterface := "efidisk"
+		diskInterface := fmt.Sprint(baseDiskInterface, id)
+		sizeInt := efiDisk.Size.InMegabytes()
+
+		storageDevice = &vms.CustomStorageDevice{
+			Enabled:    true,
+			FileVolume: efiDisk.FileVolume,
+			Format:     efiDisk.Format,
+			Interface:  &diskInterface,
+			ID:         &id,
+			Size:       efiDisk.Size,
+			SizeInt:    &sizeInt,
+		}
+	}
+
+	return storageDevice, nil
+}
+
 func vmGetHostPCIDeviceObjects(d *schema.ResourceData) vms.CustomPCIDevices {
 	pciDevice := d.Get(mkResourceVirtualEnvironmentVMHostPCI).([]interface{})
 	pciDeviceObjects := make(vms.CustomPCIDevices, len(pciDevice))
@@ -3054,6 +3265,13 @@ func vmReadCustom(
 		cpu[mkResourceVirtualEnvironmentVMCPUHotplugged] = 0
 	}
 
+	if vmConfig.NUMAEnabled != nil {
+		cpu[mkResourceVirtualEnvironmentVMCPUNUMA] = *vmConfig.NUMAEnabled
+	} else {
+		// Default value of "numa" is "false" according to the API documentation.
+		cpu[mkResourceVirtualEnvironmentVMCPUNUMA] = false
+	}
+
 	if vmConfig.CPUSockets != nil {
 		cpu[mkResourceVirtualEnvironmentVMCPUSockets] = *vmConfig.CPUSockets
 	} else {
@@ -3226,6 +3444,55 @@ func vmReadCustom(
 	} else if len(currentDiskList) > 0 {
 		err := d.Set(mkResourceVirtualEnvironmentVMDisk, orderedDiskList)
 		diags = append(diags, diag.FromErr(err)...)
+	}
+
+	if vmConfig.EFIDisk != nil {
+		efiDisk := map[string]interface{}{}
+
+		fileIDParts := strings.Split(vmConfig.EFIDisk.FileVolume, ":")
+
+		efiDisk[mkResourceVirtualEnvironmentVMEfiDiskDatastoreID] = fileIDParts[0]
+
+		if vmConfig.EFIDisk.Format != nil {
+			efiDisk[mkResourceVirtualEnvironmentVMEfiDiskFileFormat] = *vmConfig.EFIDisk.Format
+		} else {
+			// disk format may not be returned by config API if it is default for the storage, and that may be different
+			// from the default qcow2, so we need to read it from the storage API to make sure we have the correct value
+			files, err := api.Node(nodeName).ListDatastoreFiles(ctx, fileIDParts[0])
+			if err != nil {
+				diags = append(diags, diag.FromErr(err)...)
+			} else {
+				for _, v := range files {
+					if v.VolumeID == vmConfig.EFIDisk.FileVolume {
+						efiDisk[mkResourceVirtualEnvironmentVMEfiDiskFileFormat] = v.FileFormat
+						break
+					}
+				}
+			}
+
+			efiDisk[mkResourceVirtualEnvironmentVMEfiDiskFileFormat] = ""
+		}
+
+		if vmConfig.EFIDisk.Size != nil {
+			efiDisk[mkResourceVirtualEnvironmentVMEfiDiskSize] = vmConfig.EFIDisk.Size.String()
+		} else {
+			efiDisk[mkResourceVirtualEnvironmentVMEfiDiskSize] = dvResourceVirtualEnvironmentVMEfiDiskSize
+		}
+
+		currentEfiDisk := d.Get(mkResourceVirtualEnvironmentVMEfiDisk).([]interface{})
+
+		if len(clone) > 0 {
+			if len(currentEfiDisk) > 0 {
+				err := d.Set(mkResourceVirtualEnvironmentVMEfiDisk, []interface{}{efiDisk})
+				diags = append(diags, diag.FromErr(err)...)
+			}
+		} else if len(currentEfiDisk) > 0 ||
+			efiDisk[mkResourceVirtualEnvironmentVMEfiDiskDatastoreID] != dvResourceVirtualEnvironmentVMEfiDiskDatastoreID ||
+			efiDisk[mkResourceVirtualEnvironmentVMEfiDiskSize] != dvResourceVirtualEnvironmentVMEfiDiskSize ||
+			efiDisk[mkResourceVirtualEnvironmentVMEfiDiskFileFormat] != dvResourceVirtualEnvironmentVMEfiDiskFileFormat {
+			err := d.Set(mkResourceVirtualEnvironmentVMEfiDisk, []interface{}{efiDisk})
+			diags = append(diags, diag.FromErr(err)...)
+		}
 	}
 
 	currentPCIList := d.Get(mkResourceVirtualEnvironmentVMHostPCI).([]interface{})
@@ -4232,6 +4499,7 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 		cpuCores := cpuBlock[mkResourceVirtualEnvironmentVMCPUCores].(int)
 		cpuFlags := cpuBlock[mkResourceVirtualEnvironmentVMCPUFlags].([]interface{})
 		cpuHotplugged := cpuBlock[mkResourceVirtualEnvironmentVMCPUHotplugged].(int)
+		cpuNUMA := types2.CustomBool(cpuBlock[mkResourceVirtualEnvironmentVMCPUNUMA].(bool))
 		cpuSockets := cpuBlock[mkResourceVirtualEnvironmentVMCPUSockets].(int)
 		cpuType := cpuBlock[mkResourceVirtualEnvironmentVMCPUType].(string)
 		cpuUnits := cpuBlock[mkResourceVirtualEnvironmentVMCPUUnits].(int)
@@ -4245,6 +4513,7 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 		updateBody.CPUCores = &cpuCores
 		updateBody.CPUSockets = &cpuSockets
 		updateBody.CPUUnits = &cpuUnits
+		updateBody.NUMAEnabled = &cpuNUMA
 
 		if cpuHotplugged > 0 {
 			updateBody.VirtualCPUCount = &cpuHotplugged
@@ -4325,6 +4594,18 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 				}
 			}
 		}
+	}
+
+	// Prepare the new efi disk configuration.
+	if d.HasChange(mkResourceVirtualEnvironmentVMEfiDisk) {
+		efiDisk, err := vmGetEfiDisk(d, nil)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+
+		updateBody.EFIDisk = efiDisk
+
+		rebootRequired = true
 	}
 
 	// Prepare the new cloud-init configuration.
@@ -4551,6 +4832,37 @@ func vmUpdateDiskLocationAndSize(
 			return diag.FromErr(err)
 		}
 
+		// Add efidisk if it has changes
+		if d.HasChange(mkResourceVirtualEnvironmentVMEfiDisk) {
+			diskOld, diskNew := d.GetChange(mkResourceVirtualEnvironmentVMEfiDisk)
+
+			oldEfiDisk, err := vmGetEfiDiskAsStorageDevice(d, diskOld.([]interface{}))
+			if err != nil {
+				return diag.FromErr(err)
+			}
+
+			newEfiDisk, err := vmGetEfiDiskAsStorageDevice(d, diskNew.([]interface{}))
+			if err != nil {
+				return diag.FromErr(err)
+			}
+
+			if oldEfiDisk != nil {
+				baseDiskInterface := diskDigitPrefix(*oldEfiDisk.Interface)
+				diskOldEntries[baseDiskInterface][*oldEfiDisk.Interface] = *oldEfiDisk
+			}
+
+			if newEfiDisk != nil {
+				baseDiskInterface := diskDigitPrefix(*newEfiDisk.Interface)
+				diskNewEntries[baseDiskInterface][*newEfiDisk.Interface] = *newEfiDisk
+			}
+
+			if oldEfiDisk != nil && newEfiDisk != nil && oldEfiDisk.Size != newEfiDisk.Size {
+				return diag.Errorf(
+					"resizing of efidisks is not supported.",
+				)
+			}
+		}
+
 		var diskMoveBodies []*vms.MoveDiskRequestBody
 
 		var diskResizeBodies []*vms.ResizeDiskRequestBody
@@ -4582,7 +4894,7 @@ func vmUpdateDiskLocationAndSize(
 					shutdownForDisksRequired = true
 				}
 
-				if *oldDisk.SizeInt <= *diskNewEntries[prefix][oldKey].SizeInt {
+				if *oldDisk.SizeInt < *diskNewEntries[prefix][oldKey].SizeInt {
 					diskResizeBodies = append(
 						diskResizeBodies,
 						&vms.ResizeDiskRequestBody{
