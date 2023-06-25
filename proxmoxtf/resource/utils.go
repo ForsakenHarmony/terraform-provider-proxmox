@@ -188,24 +188,24 @@ func getFileIDValidator() schema.SchemaValidateDiagFunc {
 }
 
 func getFileSizeValidator() schema.SchemaValidateDiagFunc {
-	return validation.ToDiagFunc(func(i interface{}, k string) (ws []string, es []error) {
+	return validation.ToDiagFunc(func(i interface{}, k string) ([]string, []error) {
 		v, ok := i.(string)
+		var es []error
 
 		if !ok {
 			es = append(es, fmt.Errorf("expected type of %s to be string", k))
-			return
+			return nil, es
 		}
 
 		if v != "" {
 			_, err := types.ParseDiskSize(v)
-
 			if err != nil {
 				es = append(es, fmt.Errorf("expected %s to be a valid file size (100, 1M, 1G), got %s", k, v))
-				return
+				return nil, es
 			}
 		}
 
-		return
+		return []string{}, es
 	})
 }
 
@@ -580,7 +580,7 @@ func (diags ErrorDiags) Error() string {
 	return multierror.ListFormatFunc(diags.Errors())
 }
 
-func parseImportIdWithNodeName(id string) (string, string, error) {
+func parseImportIDWithNodeName(id string) (string, string, error) {
 	parts := strings.SplitN(id, "/", 2)
 
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
