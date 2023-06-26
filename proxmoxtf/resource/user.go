@@ -130,8 +130,8 @@ func User() *schema.Resource {
 			},
 			mkResourceVirtualEnvironmentUserPassword: {
 				Type:        schema.TypeString,
-				Description: "The user's password",
-				Required:    true,
+				Description: "The user's password (required if the realm is pve)",
+				Optional:    true,
 			},
 			mkResourceVirtualEnvironmentUserUserID: {
 				Type:        schema.TypeString,
