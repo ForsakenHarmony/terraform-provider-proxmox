@@ -70,7 +70,7 @@ func main() {
 	}
 
 	err = tf6server.Serve(
-		"registry.terraform.io/bpg/proxmox",
+		"registry.terraform.io/ForsakenHarmony/proxmox",
 		muxServer.ProviderServer,
 		serveOpts...,
 	)
