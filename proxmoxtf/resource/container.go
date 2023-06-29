@@ -1631,6 +1631,7 @@ func containerGetOperatingSystemTypeValidator() schema.SchemaValidateDiagFunc {
 		"debian",
 		"fedora",
 		"gentoo",
+		"nixos",
 		"opensuse",
 		"ubuntu",
 		"unmanaged",
