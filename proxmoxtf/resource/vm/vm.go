@@ -4180,7 +4180,10 @@ func vmReadCustom(
 		}
 
 		disk[mkDiskInterface] = di
-		disk[mkDiskSize] = dd.Size.InGigabytes()
+
+		if dd.Size != nil {
+			disk[mkDiskSize] = dd.Size.InGigabytes()
+		}
 
 		if dd.BurstableReadSpeedMbps != nil ||
 			dd.BurstableWriteSpeedMbps != nil ||
