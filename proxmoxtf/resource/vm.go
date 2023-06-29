@@ -3397,7 +3397,10 @@ func vmReadCustom(
 		}
 
 		disk[mkResourceVirtualEnvironmentVMDiskInterface] = di
-		disk[mkResourceVirtualEnvironmentVMDiskSize] = dd.Size.InGigabytes()
+
+		if dd.Size != nil {
+			disk[mkResourceVirtualEnvironmentVMDiskSize] = dd.Size.InGigabytes()
+		}
 
 		if dd.BurstableReadSpeedMbps != nil ||
 			dd.BurstableWriteSpeedMbps != nil ||
