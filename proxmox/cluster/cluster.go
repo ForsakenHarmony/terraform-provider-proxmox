@@ -22,6 +22,9 @@ const (
 	getVMIDStep = 1
 )
 
+// ErrVMDoesNotExist is returned when the VM identifier cannot be found on any cluster node.
+var ErrVMDoesNotExist = errors.New("unable to find VM identifier on any cluster node")
+
 var (
 	//nolint:gochecknoglobals
 	getVMIDCounter = -1
@@ -93,4 +96,48 @@ func (c *Client) GetVMID(ctx context.Context) (*int, error) {
 	}
 
 	return nil, errors.New("unable to determine the next available VM identifier")
+}
+
+// GetClusterResources retrieves current resources for cluster.
+func (c *Client) GetClusterResources(ctx context.Context, resourceType string) ([]*ResourcesListResponseData, error) {
+	reqBody := &ResourcesListRequestBody{
+		Type: resourceType,
+	}
+	resBody := &ResourcesListBody{}
+
+	err := c.DoRequest(ctx, http.MethodGet, "cluster/resources", reqBody, resBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get resources list of type (\"%s\") for cluster: %w", resourceType, err)
+	}
+
+	if resBody.Data == nil {
+		return nil, api.ErrNoDataObjectInResponse
+	}
+
+	return resBody.Data, nil
+}
+
+// GetClusterResourcesVM retrieves current VM resources for cluster.
+func (c *Client) GetClusterResourcesVM(ctx context.Context) ([]*ResourcesListResponseData, error) {
+	return c.GetClusterResources(ctx, "vm")
+}
+
+// GetVMNodeName gets node for specified vmID.
+func (c *Client) GetVMNodeName(ctx context.Context, vmID int) (*string, error) {
+	allClusterVM, err := c.GetClusterResourcesVM(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if allClusterVM == nil {
+		return nil, api.ErrNoDataObjectInResponse
+	}
+
+	for _, v := range allClusterVM {
+		if v.VMID == vmID {
+			return &v.NodeName, nil
+		}
+	}
+
+	return nil, ErrVMDoesNotExist
 }
