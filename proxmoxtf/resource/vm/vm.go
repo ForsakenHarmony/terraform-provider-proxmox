@@ -2940,7 +2940,10 @@ func vmGetCloudInitConfig(d *schema.ResourceData) *vms.CustomCloudInitConfig {
 		}
 
 		username := initializationUserAccountBlock[mkInitializationUserAccountUsername].(string)
-		initializationConfig.Username = &username
+
+		if username != "" {
+			initializationConfig.Username = &username
+		}
 	}
 
 	initializationUserDataFileID := initializationBlock[mkInitializationUserDataFileID].(string)
