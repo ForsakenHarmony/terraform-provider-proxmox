@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
 
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -24,6 +25,8 @@ type ticketAuthenticator struct {
 	conn        *Connection
 	authRequest string
 	authData    *AuthenticationResponseData
+
+	mu sync.Mutex
 }
 
 // NewTicketAuthenticator returns a new ticket authenticator.
@@ -46,9 +49,14 @@ func NewTicketAuthenticator(conn *Connection, creds *Credentials) (Authenticator
 }
 
 func (t *ticketAuthenticator) authenticate(ctx context.Context) (*AuthenticationResponseData, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	if t.authData != nil {
 		return t.authData, nil
 	}
+
+	tflog.Debug(ctx, "requesting authentication ticket for request")
 
 	req, err := http.NewRequestWithContext(
 		ctx,
