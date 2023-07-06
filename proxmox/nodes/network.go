@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"time"
 
 	"github.com/bpg/terraform-provider-proxmox/proxmox/api"
 )
@@ -66,7 +67,7 @@ func (c *Client) ReloadNetworkConfiguration(ctx context.Context) error {
 		return api.ErrNoDataObjectInResponse
 	}
 
-	err = c.Tasks().WaitForTask(ctx, *resBody.Data, networkReloadTimeoutSec, 1)
+	err = c.Tasks().WaitForTask(ctx, *resBody.Data, networkReloadTimeoutSec, 1*time.Second)
 	if err == nil {
 		return nil
 	}

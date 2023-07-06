@@ -51,6 +51,19 @@ linters-settings:
     ignoretests: true
   revive:
     exported: ["checkPrivateReceivers"]
+  wrapcheck:
+    ignoreSigs:
+      - .Errorf(
+      - errors.New(
+      - errors.Unwrap(
+      - errors.Join(
+      - .Wrap(
+      - .Wrapf(
+      - .WithMessage(
+      - .WithMessagef(
+      - .WithStack(
+      # backoff
+      - .Permanent(
 linters:
   enable-all: true
   disable:

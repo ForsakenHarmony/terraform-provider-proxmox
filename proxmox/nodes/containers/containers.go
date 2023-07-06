@@ -8,10 +8,13 @@ package containers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/cenkalti/backoff/v4"
 
 	"github.com/bpg/terraform-provider-proxmox/proxmox/api"
 )
@@ -129,74 +132,78 @@ func (c *Client) UpdateContainer(ctx context.Context, d *UpdateRequestBody) erro
 }
 
 // WaitForContainerState waits for a container to reach a specific state.
-func (c *Client) WaitForContainerState(ctx context.Context, state string, timeout int, delay int) error {
+func (c *Client) WaitForContainerState(
+	ctx context.Context,
+	state string,
+	timeout time.Duration,
+	delay time.Duration,
+) error {
 	state = strings.ToLower(state)
 
-	timeDelay := int64(delay)
-	timeMax := float64(timeout)
-	timeStart := time.Now()
-	timeElapsed := timeStart.Sub(timeStart)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
-	for timeElapsed.Seconds() < timeMax {
-		if int64(timeElapsed.Seconds())%timeDelay == 0 {
-			data, err := c.GetContainerStatus(ctx)
-			if err != nil {
-				return fmt.Errorf("error retrieving container status: %w", err)
-			}
+	b := backoff.WithContext(backoff.NewConstantBackOff(delay), ctx)
 
-			if data.Status == state {
-				return nil
-			}
-
-			time.Sleep(1 * time.Second)
+	err := backoff.Retry(func() error {
+		data, err := c.GetContainerStatus(ctx)
+		if err != nil {
+			return backoff.Permanent(fmt.Errorf("error retrieving container status: %w", err))
 		}
 
-		time.Sleep(200 * time.Millisecond)
-
-		timeElapsed = time.Since(timeStart)
-
-		if ctx.Err() != nil {
-			return fmt.Errorf("context error: %w", ctx.Err())
+		if data.Status == state {
+			return nil
 		}
+
+		return errors.New("not ready")
+	}, b)
+	if err != nil {
+		return fmt.Errorf(
+			"error waiting for container \"%d\" to enter state \"%s\": %w",
+			c.VMID,
+			state,
+			err,
+		)
 	}
 
-	return fmt.Errorf(
-		"timeout while waiting for container \"%d\" to enter the state \"%s\"",
-		c.VMID,
-		state,
-	)
+	return nil
 }
 
 // WaitForContainerLock waits for a container lock to be released.
-func (c *Client) WaitForContainerLock(ctx context.Context, timeout int, delay int, ignoreErrorResponse bool) error {
-	timeDelay := int64(delay)
-	timeMax := float64(timeout)
-	timeStart := time.Now()
-	timeElapsed := timeStart.Sub(timeStart)
+func (c *Client) WaitForContainerLock(
+	ctx context.Context,
+	timeout time.Duration,
+	delay time.Duration,
+	ignoreErrorResponse bool,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
-	for timeElapsed.Seconds() < timeMax {
-		if int64(timeElapsed.Seconds())%timeDelay == 0 {
-			data, err := c.GetContainerStatus(ctx)
+	b := backoff.WithContext(backoff.NewConstantBackOff(delay), ctx)
 
-			if err != nil {
-				if !ignoreErrorResponse {
-					return fmt.Errorf("error retrieving container status: %w", err)
-				}
-			} else if data.Lock == nil || *data.Lock == "" {
-				return nil
+	err := backoff.Retry(func() error {
+		data, err := c.GetContainerStatus(ctx)
+		if err != nil {
+			if !ignoreErrorResponse {
+				return backoff.Permanent(fmt.Errorf("error retrieving container status: %w", err))
 			}
 
-			time.Sleep(1 * time.Second)
+			return err
 		}
 
-		time.Sleep(200 * time.Millisecond)
-
-		timeElapsed = time.Since(timeStart)
-
-		if ctx.Err() != nil {
-			return fmt.Errorf("context error: %w", ctx.Err())
+		if data.Lock == nil || *data.Lock == "" {
+			return nil
 		}
+
+		return errors.New("not ready")
+	}, b)
+	if err != nil {
+		return fmt.Errorf(
+			"error waiting for container \"%d\" to become unlocked: %w",
+			c.VMID,
+			err,
+		)
 	}
 
-	return fmt.Errorf("timeout while waiting for container \"%d\" to become unlocked", c.VMID)
+	return nil
 }
