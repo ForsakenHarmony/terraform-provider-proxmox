@@ -140,6 +140,11 @@ func (c *client) DoRequest(
 	method, path string,
 	requestBody, responseBody interface{},
 ) error {
+	ctx = tflog.SetField(ctx, "method", method)
+	ctx = tflog.SetField(ctx, "path", path)
+
+	tflog.Debug(ctx, "sending HTTP request")
+
 	var reqBodyReader io.Reader
 
 	var reqContentLength *int64
@@ -272,6 +277,8 @@ func (c *client) DoRequest(
 			})
 		}
 	}
+
+	tflog.Debug(ctx, "HTTP request successful")
 
 	return nil
 }
