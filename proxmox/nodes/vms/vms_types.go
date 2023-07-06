@@ -188,6 +188,25 @@ type CustomStorageDevice struct {
 // CustomStorageDevices handles QEMU SATA device parameters.
 type CustomStorageDevices map[string]CustomStorageDevice
 
+// AddDevice tries to add a device to the map, if the map is nil it will create a new map and assign it to the pointer.
+func (r *CustomStorageDevices) AddDevice(name string, device CustomStorageDevice) error {
+	if r == nil {
+		return fmt.Errorf("CustomStorageDevices.AddDevice called on nil pointer")
+	}
+
+	if *r == nil {
+		*r = CustomStorageDevices{}
+	}
+
+	if _, found := (*r)[name]; found {
+		return fmt.Errorf("device %#v already exists", name)
+	}
+
+	(*r)[name] = device
+
+	return nil
+}
+
 // CustomUSBDevice handles QEMU USB device parameters.
 type CustomUSBDevice struct {
 	HostDevice string            `json:"host"           url:"host"`

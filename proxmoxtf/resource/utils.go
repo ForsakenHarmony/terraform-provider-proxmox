@@ -482,6 +482,7 @@ func getDiskInfo(resp *vms.GetResponseData, d *schema.ResourceData) map[string]*
 	storageDevices["ide0"] = resp.IDEDevice0
 	storageDevices["ide1"] = resp.IDEDevice1
 	storageDevices["ide2"] = resp.IDEDevice2
+	storageDevices["ide3"] = resp.IDEDevice3
 
 	storageDevices["sata0"] = resp.SATADevice0
 	storageDevices["sata1"] = resp.SATADevice1
@@ -522,6 +523,11 @@ func getDiskInfo(resp *vms.GetResponseData, d *schema.ResourceData) map[string]*
 	storageDevices["virtio14"] = resp.VirtualIODevice14
 	storageDevices["virtio15"] = resp.VirtualIODevice15
 
+	vmID := d.Get(mkResourceVirtualEnvironmentVMVMID)
+	cloudInitDiskName := fmt.Sprintf("vm-%d-cloudinit", vmID)
+
+	var cloudInitDisk *vms.CustomStorageDevice
+
 	for k, v := range storageDevices {
 		if v != nil {
 			if currentDiskMap[k] != nil {
@@ -530,10 +536,19 @@ func getDiskInfo(resp *vms.GetResponseData, d *schema.ResourceData) map[string]*
 					v.FileID = &fileID
 				}
 			}
+
 			// defensive copy of the loop variable
 			iface := k
 			v.Interface = &iface
+
+			if strings.Contains(v.FileVolume, cloudInitDiskName) {
+				cloudInitDisk = v
+			}
 		}
+	}
+
+	if cloudInitDisk != nil {
+		storageDevices["cloudinit"] = cloudInitDisk
 	}
 
 	return storageDevices

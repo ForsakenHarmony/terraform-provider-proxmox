@@ -72,6 +72,7 @@ const (
 	dvResourceVirtualEnvironmentVMInitializationDatastoreID         = "local-lvm"
 	dvResourceVirtualEnvironmentVMInitializationDNSDomain           = ""
 	dvResourceVirtualEnvironmentVMInitializationDNSServer           = ""
+	dvResourceVirtualEnvironmentVMInitializationInterface           = "ide2"
 	dvResourceVirtualEnvironmentVMInitializationIPConfigIPv4Address = ""
 	dvResourceVirtualEnvironmentVMInitializationIPConfigIPv4Gateway = ""
 	dvResourceVirtualEnvironmentVMInitializationIPConfigIPv6Address = ""
@@ -182,6 +183,7 @@ const (
 	mkResourceVirtualEnvironmentVMInitializationDNS                 = "dns"
 	mkResourceVirtualEnvironmentVMInitializationDNSDomain           = "domain"
 	mkResourceVirtualEnvironmentVMInitializationDNSServer           = "server"
+	mkResourceVirtualEnvironmentVMInitializationInterface           = "interface"
 	mkResourceVirtualEnvironmentVMInitializationIPConfig            = "ip_config"
 	mkResourceVirtualEnvironmentVMInitializationIPConfigIPv4        = "ipv4"
 	mkResourceVirtualEnvironmentVMInitializationIPConfigIPv4Address = "address"
@@ -758,6 +760,13 @@ func VM() *schema.Resource {
 							},
 							MaxItems: 1,
 							MinItems: 0,
+						},
+						mkResourceVirtualEnvironmentVMInitializationInterface: {
+							Type: schema.TypeString,
+							Description: "The interface the cloud init cdrom disk gets attached at " +
+								"(if you're using q35 or uefi ide doesn't work, so you may want to use scsi)",
+							Optional: true,
+							Default:  dvResourceVirtualEnvironmentVMInitializationInterface,
 						},
 						mkResourceVirtualEnvironmentVMInitializationIPConfig: {
 							Type:        schema.TypeList,
@@ -1589,23 +1598,6 @@ func vmCreateClone(ctx context.Context, d *schema.ResourceData, m interface{}) d
 		updateBody.SCSIHardware = &scsiHardware
 	}
 
-	if len(cdrom) > 0 || len(initialization) > 0 {
-		ideDevices = vms.CustomStorageDevices{
-			"ide0": vms.CustomStorageDevice{
-				Enabled: false,
-			},
-			"ide1": vms.CustomStorageDevice{
-				Enabled: false,
-			},
-			"ide2": vms.CustomStorageDevice{
-				Enabled: false,
-			},
-			"ide3": vms.CustomStorageDevice{
-				Enabled: false,
-			},
-		}
-	}
-
 	if len(cdrom) > 0 {
 		cdromBlock := cdrom[0].(map[string]interface{})
 
@@ -1618,13 +1610,13 @@ func vmCreateClone(ctx context.Context, d *schema.ResourceData, m interface{}) d
 
 		cdromMedia := "cdrom"
 
-		ideDevices = vms.CustomStorageDevices{
-			"ide3": vms.CustomStorageDevice{
-				Enabled:    cdromEnabled,
-				FileVolume: cdromFileID,
-				Media:      &cdromMedia,
-			},
+		ideDevices["ide3"] = vms.CustomStorageDevice{
+			Enabled:    cdromEnabled,
+			FileVolume: cdromFileID,
+			Media:      &cdromMedia,
 		}
+
+		updateBody.IDEDevices = ideDevices
 	}
 
 	if len(cpu) > 0 {
@@ -1669,19 +1661,42 @@ func vmCreateClone(ctx context.Context, d *schema.ResourceData, m interface{}) d
 		initializationBlock := initialization[0].(map[string]interface{})
 		initializationDatastoreID := initializationBlock[mkResourceVirtualEnvironmentVMInitializationDatastoreID].(string)
 
-		const cdromCloudInitEnabled = true
-		cdromCloudInitFileID := fmt.Sprintf("%s:cloudinit", initializationDatastoreID)
-		cdromCloudInitMedia := "cdrom"
-
-		ideDevices = vms.CustomStorageDevices{
-			"ide2": vms.CustomStorageDevice{
-				Enabled:    cdromCloudInitEnabled,
-				FileVolume: cdromCloudInitFileID,
-				Media:      &cdromCloudInitMedia,
-			},
+		initializationInterface := initializationBlock[mkResourceVirtualEnvironmentVMInitializationInterface].(string)
+		if initializationInterface == "" {
+			initializationInterface = dvResourceVirtualEnvironmentVMInitializationInterface
 		}
+
+		cdromMedia := "cdrom"
+		cloudInitDevice := vms.CustomStorageDevice{
+			Enabled:    true,
+			FileVolume: fmt.Sprintf("%s:cloudinit", initializationDatastoreID),
+			Media:      &cdromMedia,
+		}
+
+		var devices *vms.CustomStorageDevices
+
+		baseInitInterface := diskDigitPrefix(initializationInterface)
+		switch baseInitInterface {
+		case "ide":
+			devices = &updateBody.IDEDevices
+		case "scsi":
+			devices = &updateBody.SCSIDevices
+		case "sata":
+			devices = &updateBody.SATADevices
+		default:
+			return diag.Errorf(
+				"invalid initialization interface type: %#v (should be one of: ide[n],sata[n],scsi[n])",
+				initializationInterface,
+			)
+		}
+
+		err := devices.AddDevice(initializationInterface, cloudInitDevice)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("failed to add cloud init device: %w", err))
+		}
+
 		ciUpdateBody := &vms.UpdateRequestBody{}
-		ciUpdateBody.Delete = append(ciUpdateBody.Delete, "ide2")
+		ciUpdateBody.Delete = append(ciUpdateBody.Delete, initializationInterface)
 
 		e = vmAPI.UpdateVM(ctx, ciUpdateBody)
 		if e != nil {
@@ -1693,10 +1708,6 @@ func vmCreateClone(ctx context.Context, d *schema.ResourceData, m interface{}) d
 
 	if len(hostPCI) > 0 {
 		updateBody.PCIDevices = vmGetHostPCIDeviceObjects(d)
-	}
-
-	if len(cdrom) > 0 || len(initialization) > 0 {
-		updateBody.IDEDevices = ideDevices
 	}
 
 	if keyboardLayout != dvResourceVirtualEnvironmentVMKeyboardLayout {
@@ -2020,6 +2031,7 @@ func vmCreateCustom(ctx context.Context, d *schema.ResourceData, m interface{}) 
 
 	cdromCloudInitEnabled := false
 	cdromCloudInitFileID := ""
+	cdromCloudInitInterface := dvResourceVirtualEnvironmentVMInitializationInterface
 
 	if cdromFileID == "" {
 		cdromFileID = "cdrom"
@@ -2085,6 +2097,7 @@ func vmCreateCustom(ctx context.Context, d *schema.ResourceData, m interface{}) 
 		initialization := d.Get(mkResourceVirtualEnvironmentVMInitialization).([]interface{})
 		initializationBlock := initialization[0].(map[string]interface{})
 		initializationDatastoreID := initializationBlock[mkResourceVirtualEnvironmentVMInitializationDatastoreID].(string)
+		cdromCloudInitInterface = initializationBlock[mkResourceVirtualEnvironmentVMInitializationInterface].(string)
 
 		cdromCloudInitEnabled = true
 		cdromCloudInitFileID = fmt.Sprintf("%s:cloudinit", initializationDatastoreID)
@@ -2196,18 +2209,41 @@ func vmCreateCustom(ctx context.Context, d *schema.ResourceData, m interface{}) 
 		cpuFlagsConverted[fi] = flag.(string)
 	}
 
-	ideDevice2Media := "cdrom"
+	cdromMedia := "cdrom"
 	ideDevices := vms.CustomStorageDevices{
-		"ide2": vms.CustomStorageDevice{
-			Enabled:    cdromCloudInitEnabled,
-			FileVolume: cdromCloudInitFileID,
-			Media:      &ideDevice2Media,
-		},
 		"ide3": vms.CustomStorageDevice{
 			Enabled:    cdromEnabled,
 			FileVolume: cdromFileID,
-			Media:      &ideDevice2Media,
+			Media:      &cdromMedia,
 		},
+	}
+
+	cloudInitDevice := vms.CustomStorageDevice{
+		Enabled:    cdromCloudInitEnabled,
+		FileVolume: cdromCloudInitFileID,
+		Media:      &cdromMedia,
+	}
+
+	var devices *vms.CustomStorageDevices
+
+	baseInitInterface := diskDigitPrefix(cdromCloudInitInterface)
+	switch baseInitInterface {
+	case "ide":
+		devices = &ideDevices
+	case "scsi":
+		devices = &scsiDeviceObjects
+	case "sata":
+		devices = &sataDeviceObjects
+	default:
+		return diag.Errorf(
+			"invalid initialization interface type: %#v (should be one of: ide[n],sata[n],scsi[n])",
+			cdromCloudInitInterface,
+		)
+	}
+
+	err = devices.AddDevice(cdromCloudInitInterface, cloudInitDevice)
+	if err != nil {
+		return diag.FromErr(err)
 	}
 
 	if memoryShared > 0 {
@@ -2701,7 +2737,7 @@ func vmGetCPUArchitectureValidator() schema.SchemaValidateDiagFunc {
 func vmGetDiskDeviceObjects(
 	d *schema.ResourceData,
 	disks []interface{},
-) (map[string]map[string]vms.CustomStorageDevice, error) {
+) (map[string]vms.CustomStorageDevices, error) {
 	var diskDevice []interface{}
 
 	if disks != nil {
@@ -2710,7 +2746,7 @@ func vmGetDiskDeviceObjects(
 		diskDevice = d.Get(mkResourceVirtualEnvironmentVMDisk).([]interface{})
 	}
 
-	diskDeviceObjects := map[string]map[string]vms.CustomStorageDevice{}
+	diskDeviceObjects := map[string]vms.CustomStorageDevices{}
 	resource := VM()
 
 	for _, diskEntry := range diskDevice {
@@ -3375,10 +3411,12 @@ func vmReadCustom(
 	diskObjects := getDiskInfo(vmConfig, d)
 	var orderedDiskList []interface{}
 
+	cloudInitDisk := diskObjects["cloudinit"]
+
 	for di, dd := range diskObjects {
 		disk := map[string]interface{}{}
 
-		if dd == nil || strings.HasPrefix(di, "ide") {
+		if dd == nil || strings.HasPrefix(di, "ide") || (cloudInitDisk != nil && cloudInitDisk.FileVolume == dd.FileVolume) {
 			continue
 		}
 
@@ -3620,16 +3658,11 @@ func vmReadCustom(
 	// Compare the initialization configuration to the one stored in the state.
 	initialization := map[string]interface{}{}
 
-	if vmConfig.IDEDevice2 != nil {
-		if *vmConfig.IDEDevice2.Media == "cdrom" {
-			if strings.Contains(
-				vmConfig.IDEDevice2.FileVolume,
-				fmt.Sprintf("vm-%d-cloudinit", vmID),
-			) {
-				fileVolumeParts := strings.Split(vmConfig.IDEDevice2.FileVolume, ":")
-				initialization[mkResourceVirtualEnvironmentVMInitializationDatastoreID] = fileVolumeParts[0]
-			}
-		}
+	if diskObjects["cloudinit"] != nil {
+		fileVolumeParts := strings.Split(diskObjects["cloudinit"].FileVolume, ":")
+		initialization[mkResourceVirtualEnvironmentVMInitializationDatastoreID] = fileVolumeParts[0]
+
+		initialization[mkResourceVirtualEnvironmentVMInitializationInterface] = diskObjects["cloudinit"].Interface
 	}
 
 	if vmConfig.CloudInitDNSDomain != nil || vmConfig.CloudInitDNSServer != nil {
@@ -4669,22 +4702,39 @@ func vmUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 			initializationBlock := initialization[0].(map[string]interface{})
 			initializationDatastoreID := initializationBlock[mkResourceVirtualEnvironmentVMInitializationDatastoreID].(string)
 
+			initializationInterface := initializationBlock[mkResourceVirtualEnvironmentVMInitializationInterface].(string)
+			if initializationInterface == "" {
+				initializationInterface = dvResourceVirtualEnvironmentVMInitializationInterface
+			}
+
 			cdromMedia := "cdrom"
 
-			updateBody.IDEDevices["ide2"] = vms.CustomStorageDevice{
+			cloudInitDevice := vms.CustomStorageDevice{
 				Enabled:    true,
 				FileVolume: fmt.Sprintf("%s:cloudinit", initializationDatastoreID),
 				Media:      &cdromMedia,
 			}
 
-			if vmConfig.IDEDevice2 != nil &&
-				strings.Contains(
-					vmConfig.IDEDevice2.FileVolume,
-					fmt.Sprintf("vm-%d-cloudinit", vmID),
-				) {
-				tmp := updateBody.IDEDevices["ide2"]
-				tmp.Enabled = true
-				updateBody.IDEDevices["ide2"] = tmp
+			var devices *vms.CustomStorageDevices
+
+			baseInitInterface := diskDigitPrefix(initializationInterface)
+			switch baseInitInterface {
+			case "ide":
+				devices = &updateBody.IDEDevices
+			case "scsi":
+				devices = &updateBody.SCSIDevices
+			case "sata":
+				devices = &updateBody.SATADevices
+			default:
+				return diag.Errorf(
+					"Invalid initialization interface type: %#v (should be one of: ide[n],sata[n],scsi[n])",
+					initializationInterface,
+				)
+			}
+
+			err := devices.AddDevice(initializationInterface, cloudInitDevice)
+			if err != nil {
+				return diag.FromErr(err)
 			}
 		}
 
