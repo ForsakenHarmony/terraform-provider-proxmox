@@ -36,11 +36,9 @@ import (
 var _ provider.Provider = &proxmoxProvider{}
 
 // New is a helper function to simplify provider server and testing implementation.
-func New(version string) func() provider.Provider {
-	return func() provider.Provider {
-		return &proxmoxProvider{
-			version: version,
-		}
+func New(version string) provider.Provider {
+	return &proxmoxProvider{
+		version: version,
 	}
 }
 

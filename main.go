@@ -48,7 +48,7 @@ func main() {
 	}
 
 	providers := []func() tfprotov6.ProviderServer{
-		providerserver.NewProtocol6(fwprovider.New(version)()),
+		providerserver.NewProtocol6(fwprovider.New(version)),
 		func() tfprotov6.ProviderServer {
 			return upgradedSdkServer
 		},

@@ -49,7 +49,7 @@ func testAccMuxProviders(ctx context.Context, t *testing.T) map[string]func() (t
 	require.NoError(t, err)
 
 	// Init framework provider
-	frameworkProvider := fwprovider.New("test")()
+	frameworkProvider := fwprovider.New("test")
 
 	providers := []func() tfprotov6.ProviderServer{
 		providerserver.NewProtocol6(frameworkProvider),
