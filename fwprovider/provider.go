@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
-	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -58,7 +57,7 @@ type proxmoxProviderModel struct {
 	OTP      types.String `tfsdk:"otp"`
 	Username types.String `tfsdk:"username"`
 	Password types.String `tfsdk:"password"`
-	SSH      []struct {
+	SSH      *struct {
 		Agent          types.Bool   `tfsdk:"agent"`
 		AgentSocket    types.String `tfsdk:"agent_socket"`
 		Password       types.String `tfsdk:"password"`
@@ -135,72 +134,67 @@ func (p *proxmoxProvider) Schema(_ context.Context, _ provider.SchemaRequest, re
 		},
 		Blocks: map[string]schema.Block{
 			// have to define it as a list due to backwards compatibility
-			"ssh": schema.ListNestedBlock{
+			"ssh": schema.SingleNestedBlock{
 				Description: "The SSH configuration for the Proxmox nodes.",
-				Validators: []validator.List{
-					listvalidator.SizeAtMost(1),
-				},
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"agent": schema.BoolAttribute{
-							Description: "Whether to use the SSH agent for authentication. " +
-								"Defaults to `false`.",
-							Optional: true,
-						},
-						"agent_socket": schema.StringAttribute{
-							Description: "The path to the SSH agent socket. " +
-								"Defaults to the value of the `SSH_AUTH_SOCK` " +
-								"environment variable.",
-							Optional: true,
-						},
-						"password": schema.StringAttribute{
-							Description: "The password used for the SSH connection. " +
-								"Defaults to the value of the `password` field of the " +
-								"`provider` block.",
-							Optional:  true,
-							Sensitive: true,
-						},
-						"username": schema.StringAttribute{
-							Description: "The username used for the SSH connection. " +
-								"Defaults to the value of the `username` field of the " +
-								"`provider` block.",
-							Optional: true,
-						},
-						"socks5_server": schema.StringAttribute{
-							Description: "The address:port of the SOCKS5 proxy server. " +
-								"Defaults to the value of the `PROXMOX_VE_SSH_SOCKS5_SERVER` environment variable.",
-							Optional: true,
-						},
-						"socks5_username": schema.StringAttribute{
-							Description: "The username for the SOCKS5 proxy server. " +
-								"Defaults to the value of the `PROXMOX_VE_SSH_SOCKS5_USERNAME` environment variable.",
-							Optional: true,
-						},
-						"socks5_password": schema.StringAttribute{
-							Description: "The password for the SOCKS5 proxy server. " +
-								"Defaults to the value of the `PROXMOX_VE_SSH_SOCKS5_PASSWORD` environment variable.",
-							Optional:  true,
-							Sensitive: true,
-						},
+				Attributes: map[string]schema.Attribute{
+					"agent": schema.BoolAttribute{
+						Description: "Whether to use the SSH agent for authentication. " +
+							"Defaults to `false`.",
+						Optional: true,
 					},
-					Blocks: map[string]schema.Block{
-						"node": schema.ListNestedBlock{
-							Description: "Overrides for SSH connection configuration for a Proxmox VE node.",
-							NestedObject: schema.NestedBlockObject{
-								Attributes: map[string]schema.Attribute{
-									"name": schema.StringAttribute{
-										Description: "The name of the Proxmox VE node.",
-										Required:    true,
-									},
-									"address": schema.StringAttribute{
-										Description: "The address of the Proxmox VE node.",
-										Required:    true,
-									},
-									"port": schema.Int64Attribute{
-										Description: "The port of the Proxmox VE node.",
-										Optional:    true,
-										Validators:  []validator.Int64{int64validator.Between(1, 65535)},
-									},
+					"agent_socket": schema.StringAttribute{
+						Description: "The path to the SSH agent socket. " +
+							"Defaults to the value of the `SSH_AUTH_SOCK` " +
+							"environment variable.",
+						Optional: true,
+					},
+					"password": schema.StringAttribute{
+						Description: "The password used for the SSH connection. " +
+							"Defaults to the value of the `password` field of the " +
+							"`provider` block.",
+						Optional:  true,
+						Sensitive: true,
+					},
+					"username": schema.StringAttribute{
+						Description: "The username used for the SSH connection. " +
+							"Defaults to the value of the `username` field of the " +
+							"`provider` block.",
+						Optional: true,
+					},
+					"socks5_server": schema.StringAttribute{
+						Description: "The address:port of the SOCKS5 proxy server. " +
+							"Defaults to the value of the `PROXMOX_VE_SSH_SOCKS5_SERVER` environment variable.",
+						Optional: true,
+					},
+					"socks5_username": schema.StringAttribute{
+						Description: "The username for the SOCKS5 proxy server. " +
+							"Defaults to the value of the `PROXMOX_VE_SSH_SOCKS5_USERNAME` environment variable.",
+						Optional: true,
+					},
+					"socks5_password": schema.StringAttribute{
+						Description: "The password for the SOCKS5 proxy server. " +
+							"Defaults to the value of the `PROXMOX_VE_SSH_SOCKS5_PASSWORD` environment variable.",
+						Optional:  true,
+						Sensitive: true,
+					},
+				},
+				Blocks: map[string]schema.Block{
+					"node": schema.ListNestedBlock{
+						Description: "Overrides for SSH connection configuration for a Proxmox VE node.",
+						NestedObject: schema.NestedBlockObject{
+							Attributes: map[string]schema.Attribute{
+								"name": schema.StringAttribute{
+									Description: "The name of the Proxmox VE node.",
+									Required:    true,
+								},
+								"address": schema.StringAttribute{
+									Description: "The address of the Proxmox VE node.",
+									Required:    true,
+								},
+								"port": schema.Int64Attribute{
+									Description: "The port of the Proxmox VE node.",
+									Optional:    true,
+									Validators:  []validator.Int64{int64validator.Between(1, 65535)},
 								},
 							},
 						},
@@ -337,36 +331,36 @@ func (p *proxmoxProvider) Configure(
 	nodeOverrides := map[string]ssh.ProxmoxNode{}
 
 	//nolint: nestif
-	if len(config.SSH) > 0 {
-		if !config.SSH[0].Username.IsNull() {
-			sshUsername = config.SSH[0].Username.ValueString()
+	if config.SSH != nil {
+		if !config.SSH.Username.IsNull() {
+			sshUsername = config.SSH.Username.ValueString()
 		}
 
-		if !config.SSH[0].Password.IsNull() {
-			sshPassword = config.SSH[0].Password.ValueString()
+		if !config.SSH.Password.IsNull() {
+			sshPassword = config.SSH.Password.ValueString()
 		}
 
-		if !config.SSH[0].Agent.IsNull() {
-			sshAgent = config.SSH[0].Agent.ValueBool()
+		if !config.SSH.Agent.IsNull() {
+			sshAgent = config.SSH.Agent.ValueBool()
 		}
 
-		if !config.SSH[0].AgentSocket.IsNull() {
-			sshAgentSocket = config.SSH[0].AgentSocket.ValueString()
+		if !config.SSH.AgentSocket.IsNull() {
+			sshAgentSocket = config.SSH.AgentSocket.ValueString()
 		}
 
-		if !config.SSH[0].Socks5Server.IsNull() {
-			sshSocks5Server = config.SSH[0].Socks5Server.ValueString()
+		if !config.SSH.Socks5Server.IsNull() {
+			sshSocks5Server = config.SSH.Socks5Server.ValueString()
 		}
 
-		if !config.SSH[0].Socks5Username.IsNull() {
-			sshSocks5Username = config.SSH[0].Socks5Username.ValueString()
+		if !config.SSH.Socks5Username.IsNull() {
+			sshSocks5Username = config.SSH.Socks5Username.ValueString()
 		}
 
-		if !config.SSH[0].Socks5Password.IsNull() {
-			sshSocks5Password = config.SSH[0].Socks5Password.ValueString()
+		if !config.SSH.Socks5Password.IsNull() {
+			sshSocks5Password = config.SSH.Socks5Password.ValueString()
 		}
 
-		for _, n := range config.SSH[0].Nodes {
+		for _, n := range config.SSH.Nodes {
 			nodePort := int32(n.Port.ValueInt64())
 			if nodePort == 0 {
 				nodePort = 22
@@ -493,7 +487,7 @@ func (r *apiResolver) Resolve(ctx context.Context, nodeName string) (ssh.Proxmox
 		tflog.Debug(ctx, fmt.Sprintf("Attempting a DNS lookup of node %q.", nc.NodeName))
 
 		ips, err := net.LookupIP(nodeName)
-		if err != nil {
+		if err == nil {
 			for _, ip := range ips {
 				if ipv4 := ip.To4(); ipv4 != nil {
 					nodeAddress = ipv4.String()
