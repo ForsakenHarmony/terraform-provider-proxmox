@@ -24,7 +24,7 @@ import (
 )
 
 // GetInfo returns the disk information for a VM.
-func GetInfo(resp *vms.GetResponseData, d *schema.ResourceData) vms.CustomStorageDevices {
+func GetInfo(resp *vms.GetResponseData, d *schema.ResourceData, vmID int) vms.CustomStorageDevices {
 	currentDisk := d.Get(MkDisk)
 
 	currentDiskList := currentDisk.([]interface{})
@@ -83,6 +83,10 @@ func GetInfo(resp *vms.GetResponseData, d *schema.ResourceData) vms.CustomStorag
 	storageDevices["virtio14"] = resp.VirtualIODevice14
 	storageDevices["virtio15"] = resp.VirtualIODevice15
 
+	cloudInitDiskName := fmt.Sprintf("vm-%d-cloudinit", vmID)
+
+	var cloudInitDisk *vms.CustomStorageDevice
+
 	for k, v := range storageDevices {
 		if v != nil {
 			if currentDiskMap[k] != nil {
@@ -99,7 +103,16 @@ func GetInfo(resp *vms.GetResponseData, d *schema.ResourceData) vms.CustomStorag
 			// defensive copy of the loop variable
 			iface := k
 			v.Interface = &iface
+
+			if strings.Contains(v.FileVolume, cloudInitDiskName) {
+				cloudInitDisk = v
+			}
 		}
+	}
+
+	// should be added after the loop
+	if cloudInitDisk != nil {
+		storageDevices["cloudinit"] = cloudInitDisk
 	}
 
 	return storageDevices
@@ -593,10 +606,16 @@ func Read(
 	currentDiskList := d.Get(MkDisk).([]interface{})
 	diskMap := map[string]interface{}{}
 
+	cloudInitDisk := diskObjects["cloudinit"]
+
 	var diags diag.Diagnostics
 
 	for di, dd := range diskObjects {
 		if dd == nil || dd.FileVolume == "none" || strings.HasPrefix(di, "ide") {
+			continue
+		}
+
+		if cloudInitDisk != nil && cloudInitDisk.FileVolume == dd.FileVolume {
 			continue
 		}
 
