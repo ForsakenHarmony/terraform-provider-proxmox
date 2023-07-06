@@ -278,7 +278,7 @@ func (p *proxmoxProvider) Configure(
 		return
 	}
 
-	apiClient, err := api.NewClient(creds, conn)
+	apiClient, err := api.NewClient(ctx, creds, conn)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to create Proxmox VE API client",
