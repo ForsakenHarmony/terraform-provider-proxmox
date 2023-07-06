@@ -39,7 +39,7 @@ func (t IPAddrType) Equal(o attr.Type) bool {
 
 // String returns a string representation of the type.
 func (t IPAddrType) String() string {
-	return "IPAddrType"
+	return "pvetypes.IPAddrType"
 }
 
 // ValueFromString converts a string value to a StringValuable.

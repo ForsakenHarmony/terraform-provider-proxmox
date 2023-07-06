@@ -421,6 +421,7 @@ func (p *proxmoxProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewLinuxBridgeResource,
 		NewLinuxVLANResource,
 		NewDownloadFileResource,
+		NewUserResource,
 	}
 }
 

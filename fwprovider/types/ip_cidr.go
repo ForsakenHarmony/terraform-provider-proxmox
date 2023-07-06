@@ -39,7 +39,7 @@ func (t IPCIDRType) Equal(o attr.Type) bool {
 
 // String returns a string representation of the type.
 func (t IPCIDRType) String() string {
-	return "IPCIDRType"
+	return "pvetypes.IPCIDRType"
 }
 
 // ValueFromString converts a string value to a StringValuable.

@@ -12,8 +12,8 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 func TestAccResourceVM(t *testing.T) {
@@ -323,7 +323,7 @@ func TestAccResourceVMDisks(t *testing.T) {
 		//			}),
 		//		),
 		//	},
-		//{
+		// {
 		//	RefreshState: true,
 		//	Destroy:      false,
 		// },

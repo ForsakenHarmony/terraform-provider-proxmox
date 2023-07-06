@@ -34,7 +34,6 @@ func (c *Client) CloneVM(ctx context.Context, retries int, d *CloneRequestBody, 
 
 	for i := 0; i < retries; i++ {
 		err = c.DoRequest(ctx, http.MethodPost, c.ExpandPath("clone"), d, resBody)
-
 		if err != nil {
 			return fmt.Errorf("error cloning VM: %w", err)
 		}
@@ -66,7 +65,6 @@ func (c *Client) CreateVM(ctx context.Context, d *CreateRequestBody, timeout int
 	}
 
 	err = c.Tasks().WaitForTask(ctx, *taskID, timeout, 1)
-
 	if err != nil {
 		return fmt.Errorf("error waiting for VM creation: %w", err)
 	}

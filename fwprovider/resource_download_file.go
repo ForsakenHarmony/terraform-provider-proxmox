@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bpg/terraform-provider-proxmox/fwprovider/structure"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -25,6 +24,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/bpg/terraform-provider-proxmox/fwprovider/structure"
 
 	"github.com/bpg/terraform-provider-proxmox/proxmox"
 	"github.com/bpg/terraform-provider-proxmox/proxmox/nodes"
@@ -389,7 +390,6 @@ func (r *downloadFileResource) Create(
 		&downloadFileReq,
 		plan.UploadTimeout.ValueInt64(),
 	)
-
 	if err != nil {
 		if strings.Contains(err.Error(), "refusing to override existing file") {
 			resp.Diagnostics.AddError(
@@ -421,7 +421,6 @@ func (r *downloadFileResource) Create(
 		plan.Content.ValueString() + "/" + plan.FileName.ValueString())
 
 	err = r.read(ctx, &plan)
-
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error when reading file from datastore", err.Error(),
