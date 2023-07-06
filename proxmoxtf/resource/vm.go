@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/customdiff"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -1921,8 +1922,18 @@ func vmCreateClone(ctx context.Context, d *schema.ResourceData, m interface{}) d
 		}
 
 		if &efiType != currentDiskInfo.Type {
-			return diag.Errorf(
-				"resizing of efidisks is not supported.",
+			current := ""
+
+			if currentDiskInfo.Type != nil {
+				current = *currentDiskInfo.Type
+			}
+
+			tflog.Warn(
+				ctx, fmt.Sprintf(
+					"changing type of efidisk is not supported (current: %#v, wanted: %#v).",
+					current,
+					efiType,
+				),
 			)
 		}
 
