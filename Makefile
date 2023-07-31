@@ -74,6 +74,15 @@ init:
 test:
 	go test -v ./...
 
+TEST_COUNT?=1
+PKG_NAME=internal/...
+ACCTEST_TIMEOUT?=180m
+ACCTEST_PARALLELISM?=20
+
+# make testacc PKG_NAME=internal/access TESTARGS='-run=TestAccAcl_User'
+testacc:
+	TF_ACC=1 go test ./$(PKG_NAME) -v -count $(TEST_COUNT) -parallel $(ACCTEST_PARALLELISM) $(TESTARGS) -timeout $(ACCTEST_TIMEOUT)
+
 lint:
 	go run -modfile=tools/go.mod github.com/golangci/golangci-lint/cmd/golangci-lint run --fix
 
@@ -90,4 +99,4 @@ $(TARGETS):
 		-j "dist/$(NAME)_v$(VERSION)-custom_$@_amd64.zip" \
 		"dist/$@/$(NAME)_v$(VERSION)-custom"
 
-.PHONY: clean build example example-apply example-destroy example-init example-plan fmt init targets test $(TARGETS)
+.PHONY: clean build example example-apply example-destroy example-init example-plan fmt init targets test testacc $(TARGETS)

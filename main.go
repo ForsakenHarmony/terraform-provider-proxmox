@@ -19,6 +19,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-mux/tf6muxserver"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
+	_ "github.com/bpg/terraform-provider-proxmox/internal/access"
+	_ "github.com/bpg/terraform-provider-proxmox/internal/network"
+
 	newProvider "github.com/bpg/terraform-provider-proxmox/internal/provider"
 	"github.com/bpg/terraform-provider-proxmox/proxmoxtf/provider"
 )

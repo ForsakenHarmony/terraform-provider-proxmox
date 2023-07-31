@@ -4,7 +4,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-package test
+package pvetest
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -16,7 +16,7 @@ import (
 const (
 	// ProviderConfig is a shared configuration to combine with the actual
 	// test configuration so the Proxmox VE client is properly configured.
-	// It is also possible to use the PROXMOX_VE_ environment variables instead,.
+	// It is also possible to use the PROXMOX_VE_ environment variables instead.
 	ProviderConfig = `
 provider "proxmox" {
   username = "root@pam"

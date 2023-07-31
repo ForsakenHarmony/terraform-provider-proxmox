@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
+	"github.com/bpg/terraform-provider-proxmox/internal/registry"
 	pvetypes "github.com/bpg/terraform-provider-proxmox/internal/types"
 	"github.com/bpg/terraform-provider-proxmox/proxmox"
 	"github.com/bpg/terraform-provider-proxmox/proxmox/nodes"
@@ -34,6 +35,11 @@ var (
 	_ resource.ResourceWithConfigure   = &linuxBridgeResource{}
 	_ resource.ResourceWithImportState = &linuxBridgeResource{}
 )
+
+//nolint:gochecknoinits
+func init() {
+	registry.AddResourceFactory(NewLinuxBridgeResource)
+}
 
 type linuxBridgeResourceModel struct {
 	// Base attributes

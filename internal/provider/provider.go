@@ -23,7 +23,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
-	"github.com/bpg/terraform-provider-proxmox/internal/network"
+	"github.com/bpg/terraform-provider-proxmox/internal/registry"
 	"github.com/bpg/terraform-provider-proxmox/proxmox"
 	"github.com/bpg/terraform-provider-proxmox/proxmox/api"
 	"github.com/bpg/terraform-provider-proxmox/proxmox/nodes"
@@ -347,14 +347,11 @@ func (p *proxmoxProvider) Configure(
 }
 
 func (p *proxmoxProvider) Resources(_ context.Context) []func() resource.Resource {
-	return []func() resource.Resource{
-		network.NewLinuxBridgeResource,
-		network.NewLinuxVLANResource,
-	}
+	return registry.ResourceFactories()
 }
 
 func (p *proxmoxProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{}
+	return registry.DataSourceFactories()
 }
 
 type apiResolver struct {

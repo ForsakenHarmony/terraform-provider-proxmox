@@ -22,6 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
+	"github.com/bpg/terraform-provider-proxmox/internal/registry"
 	pvetypes "github.com/bpg/terraform-provider-proxmox/internal/types"
 	"github.com/bpg/terraform-provider-proxmox/proxmox"
 	"github.com/bpg/terraform-provider-proxmox/proxmox/nodes"
@@ -32,6 +33,11 @@ var (
 	_ resource.ResourceWithConfigure   = &linuxVLANResource{}
 	_ resource.ResourceWithImportState = &linuxVLANResource{}
 )
+
+//nolint:gochecknoinits
+func init() {
+	registry.AddResourceFactory(NewLinuxVLANResource)
+}
 
 type linuxVLANResourceModel struct {
 	// Base attributes

@@ -4,12 +4,14 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-package test
+package network
 
 import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+
+	"github.com/bpg/terraform-provider-proxmox/internal/pvetest"
 )
 
 func Test_LinuxVLANResource(t *testing.T) {
@@ -18,11 +20,11 @@ func Test_LinuxVLANResource(t *testing.T) {
 	resourceName := "proxmox_virtual_environment_network_linux_vlan.test"
 
 	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: AccTestProtoV6ProviderFactories,
+		ProtoV6ProviderFactories: pvetest.AccTestProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: ProviderConfig + `
+				Config: pvetest.ProviderConfig + `
 resource "proxmox_virtual_environment_network_linux_vlan" "test" {
 	node_name = "pve"
 	name = "ens18.33"
@@ -46,7 +48,7 @@ resource "proxmox_virtual_environment_network_linux_vlan" "test" {
 			},
 			// Update testing
 			{
-				Config: ProviderConfig + `
+				Config: pvetest.ProviderConfig + `
 resource "proxmox_virtual_environment_network_linux_vlan" "test" {
 	node_name = "pve"
 	name = "ens18.33"
