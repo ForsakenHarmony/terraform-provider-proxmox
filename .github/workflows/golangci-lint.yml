@@ -7,9 +7,11 @@ on:
     branches:
       - main
   pull_request:
+
 permissions:
   contents: read
   pull-requests: read
+  checks: write
 
 jobs:
   golangci-lint:
@@ -27,6 +29,9 @@ jobs:
           filters: |
             go:
               - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'tools/go.mod'
             linter:
               - .github/workflows/golangci-lint.yml
 
@@ -41,6 +46,6 @@ jobs:
       - name: Lint code
         if: ${{ steps.filter.outputs.go == 'true' || steps.filter.outputs.linter == 'true'}}
         uses: golangci/golangci-lint-action@4696ba8babb6127d732c3c6dde519db15edab9ea # v6
-        with: 
+        with:
           version: v1.64.7 # renovate: datasource=github-releases depName=golangci/golangci-lint
           args: -v --timeout=10m
