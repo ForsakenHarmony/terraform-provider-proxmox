@@ -6,6 +6,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/google/go-querystring/query"
+
 	"github.com/bpg/terraform-provider-proxmox/proxmox/types"
 )
 
@@ -213,15 +215,13 @@ func (d CustomStorageDevice) Copy() *CustomStorageDevice {
 // CustomStorageDevices handles map of QEMU storage device per disk interface.
 type CustomStorageDevices map[string]*CustomStorageDevice
 
+var _ query.Encoder = CustomStorageDevices{}
+
 // ByStorageInterface returns a map of CustomStorageDevices filtered by the given storage interface.
-func (d *CustomStorageDevices) ByStorageInterface(storageInterface string) CustomStorageDevices {
+func (d CustomStorageDevices) ByStorageInterface(storageInterface string) CustomStorageDevices {
 	result := make(CustomStorageDevices)
 
-	if d == nil {
-		return result
-	}
-
-	for k, v := range *d {
+	for k, v := range d {
 		if v.StorageInterface() == storageInterface {
 			result[k] = v
 		}
@@ -231,12 +231,8 @@ func (d *CustomStorageDevices) ByStorageInterface(storageInterface string) Custo
 }
 
 // EncodeValues converts a CustomStorageDevices array to multiple URL values.
-func (d *CustomStorageDevices) EncodeValues(_ string, v *url.Values) error {
-	if d == nil {
-		return nil
-	}
-
-	for s, d := range *d {
+func (d CustomStorageDevices) EncodeValues(_ string, v *url.Values) error {
+	for s, d := range d {
 		if d.Enabled {
 			if err := d.EncodeValues(s, v); err != nil {
 				return fmt.Errorf("error encoding storage device %s: %w", s, err)
