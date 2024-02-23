@@ -155,7 +155,6 @@ func groupDelete(ctx context.Context, d *schema.ResourceData, m interface{}) dia
 	groupID := d.Id()
 
 	err = api.Access().DeleteGroup(ctx, groupID)
-
 	if err != nil {
 		if strings.Contains(err.Error(), "HTTP 404") {
 			d.SetId("")

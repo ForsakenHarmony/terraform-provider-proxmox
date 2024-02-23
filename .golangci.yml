@@ -1,6 +1,4 @@
-# v1.51.2
-run:
-  deadline: 5m
+# v1.55.2
 issues:
   new-from-rev: 9101977dc81f64db077b9a1eda2fe401359854c9
   # Maximum issues count per one linter. Set to 0 to disable.
@@ -26,10 +24,6 @@ issues:
       linters:
         - lll
 linters-settings:
-  nolintlint:
-    # Disable to ensure that nolint directives don't have a leading space.
-    # Default is true.
-    allow-leading-space: false
   exhaustive:
     default-signifies-exhaustive: true
   govet:
@@ -48,9 +42,6 @@ linters-settings:
     statements: 60
   errcheck:
     check-blank: true
-    ignoretests: true
-  revive:
-    exported: ["checkPrivateReceivers"]
   wrapcheck:
     ignoreSigs:
       - .Errorf(
@@ -64,6 +55,8 @@ linters-settings:
       - .WithStack(
       # backoff
       - .Permanent(
+  wsl:
+    allow-separated-leading-comment: true
 linters:
   enable-all: true
   disable:
@@ -94,7 +87,9 @@ linters:
     - gomnd
     - ireturn
     - maintidx
+    - nestif
     - nlreturn
+    - perfsprint
     - tagliatelle
     - testpackage
     - varnamelen

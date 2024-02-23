@@ -1,0 +1,50 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "github>bpg/renovate-config",
+    "github>bpg/renovate-config:automerge-github-actions",
+    ":semanticCommitTypeAll(chore)",
+  ],
+  "postUpdateOptions": [
+    "gomodTidy",
+    "gomodUpdateImportPaths",
+  ],
+  "ignorePaths": ["howtos/**"],
+  "rebaseWhen": "behind-base-branch",
+  "packageRules": [
+    {
+      "matchPackagePatterns": [
+        "*",
+      ],
+      "semanticCommitScope": "deps",
+      "commitMessageExtra": "({{currentVersion}} → {{newVersion}})",
+    },
+    {
+      "matchFileNames": [
+        "tools/go.mod",
+        "tools/go.sum",
+      ],
+      "commitMessageExtra": "({{currentVersion}} → {{newVersion}}) in /tools",
+      "groupName": ["tools"],
+    },
+    {
+      "matchFileNames": [
+        "examples/**",
+        "example/**",
+        "docs/**",
+      ],
+      "semanticCommitScope": "docs",
+      "automerge": true,
+      "automergeType": "branch",
+      "matchUpdateTypes": ["minor", "patch"],
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "semanticCommitScope": "ci",
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "commitMessagePrefix": "{{semanticCommitType}}({{semanticCommitScope}}):",
+    },
+  ]
+}

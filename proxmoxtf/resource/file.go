@@ -17,10 +17,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -28,7 +30,9 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/bpg/terraform-provider-proxmox/proxmox/api"
+	"github.com/bpg/terraform-provider-proxmox/proxmox/ssh"
 	"github.com/bpg/terraform-provider-proxmox/proxmoxtf"
+	"github.com/bpg/terraform-provider-proxmox/proxmoxtf/resource/validator"
 	"github.com/bpg/terraform-provider-proxmox/utils"
 )
 
@@ -38,7 +42,10 @@ const (
 	dvResourceVirtualEnvironmentFileSourceFileChecksum = ""
 	dvResourceVirtualEnvironmentFileSourceFileFileName = ""
 	dvResourceVirtualEnvironmentFileSourceFileInsecure = false
+	dvResourceVirtualEnvironmentFileSourceFileMinTLS   = ""
+	dvResourceVirtualEnvironmentFileOverwrite          = true
 	dvResourceVirtualEnvironmentFileSourceRawResize    = 0
+	dvResourceVirtualEnvironmentFileTimeoutUpload      = 1800
 
 	mkResourceVirtualEnvironmentFileContentType          = "content_type"
 	mkResourceVirtualEnvironmentFileDatastoreID          = "datastore_id"
@@ -47,16 +54,19 @@ const (
 	mkResourceVirtualEnvironmentFileFileSize             = "file_size"
 	mkResourceVirtualEnvironmentFileFileTag              = "file_tag"
 	mkResourceVirtualEnvironmentFileNodeName             = "node_name"
+	mkResourceVirtualEnvironmentFileOverwrite            = "overwrite"
 	mkResourceVirtualEnvironmentFileSourceFile           = "source_file"
 	mkResourceVirtualEnvironmentFileSourceFilePath       = "path"
 	mkResourceVirtualEnvironmentFileSourceFileChanged    = "changed"
 	mkResourceVirtualEnvironmentFileSourceFileChecksum   = "checksum"
 	mkResourceVirtualEnvironmentFileSourceFileFileName   = "file_name"
 	mkResourceVirtualEnvironmentFileSourceFileInsecure   = "insecure"
+	mkResourceVirtualEnvironmentFileSourceFileMinTLS     = "min_tls"
 	mkResourceVirtualEnvironmentFileSourceRaw            = "source_raw"
 	mkResourceVirtualEnvironmentFileSourceRawData        = "data"
 	mkResourceVirtualEnvironmentFileSourceRawFileName    = "file_name"
 	mkResourceVirtualEnvironmentFileSourceRawResize      = "resize"
+	mkResourceVirtualEnvironmentFileTimeoutUpload        = "timeout_upload"
 )
 
 // File returns a resource that manages files on a node.
@@ -68,8 +78,8 @@ func File() *schema.Resource {
 				Description:      "The content type",
 				Optional:         true,
 				ForceNew:         true,
-				Default:          dvResourceVirtualEnvironmentFileContentType,
-				ValidateDiagFunc: getContentTypeValidator(),
+				Computed:         true,
+				ValidateDiagFunc: validator.ContentType(),
 			},
 			mkResourceVirtualEnvironmentFileDatastoreID: {
 				Type:        schema.TypeString,
@@ -150,6 +160,14 @@ func File() *schema.Resource {
 							ForceNew:    true,
 							Default:     dvResourceVirtualEnvironmentFileSourceFileInsecure,
 						},
+						mkResourceVirtualEnvironmentFileSourceFileMinTLS: {
+							Type: schema.TypeString,
+							Description: "The minimum required TLS version for HTTPS sources." +
+								"Supported values: `1.0|1.1|1.2|1.3`. Defaults to `1.3`.",
+							Optional: true,
+							ForceNew: true,
+							Default:  dvResourceVirtualEnvironmentFileSourceFileMinTLS,
+						},
 					},
 				},
 				MaxItems: 1,
@@ -189,27 +207,45 @@ func File() *schema.Resource {
 				MaxItems: 1,
 				MinItems: 0,
 			},
+			mkResourceVirtualEnvironmentFileTimeoutUpload: {
+				Type:        schema.TypeInt,
+				Description: "Timeout for uploading ISO/VSTMPL files in seconds",
+				Optional:    true,
+				Default:     dvResourceVirtualEnvironmentFileTimeoutUpload,
+			},
+			mkResourceVirtualEnvironmentFileOverwrite: {
+				Type:        schema.TypeBool,
+				Description: "Whether to overwrite the file if it already exists",
+				Optional:    true,
+				Default:     dvResourceVirtualEnvironmentFileOverwrite,
+			},
 		},
 		CreateContext: fileCreate,
 		ReadContext:   fileRead,
 		DeleteContext: fileDelete,
+		UpdateContext: fileUpdate,
 		Importer: &schema.ResourceImporter{
-			StateContext: func(ctx context.Context, d *schema.ResourceData, i interface{}) ([]*schema.ResourceData, error) {
-				node, datastore, volumeID, err := fileParseImportID(d.Id())
+			StateContext: func(_ context.Context, d *schema.ResourceData, _ interface{}) ([]*schema.ResourceData, error) {
+				node, volID, err := fileParseImportID(d.Id())
 				if err != nil {
 					return nil, err
 				}
 
-				d.SetId(volumeID)
+				d.SetId(volID.String())
 
 				err = d.Set(mkResourceVirtualEnvironmentFileNodeName, node)
 				if err != nil {
-					return nil, fmt.Errorf("failed setting state during import: %w", err)
+					return nil, fmt.Errorf("failed setting 'node_name' in state during import: %w", err)
 				}
 
-				err = d.Set(mkResourceVirtualEnvironmentFileDatastoreID, datastore)
+				err = d.Set(mkResourceVirtualEnvironmentFileDatastoreID, volID.datastoreID)
 				if err != nil {
-					return nil, fmt.Errorf("failed setting state during import: %w", err)
+					return nil, fmt.Errorf("failed setting 'datastore_id' in state during import: %w", err)
+				}
+
+				err = d.Set(mkResourceVirtualEnvironmentFileContentType, volID.contentType)
+				if err != nil {
+					return nil, fmt.Errorf("failed setting 'content_type' in state during import: %w", err)
 				}
 
 				return []*schema.ResourceData{d}, nil
@@ -218,14 +254,59 @@ func File() *schema.Resource {
 	}
 }
 
-func fileParseImportID(id string) (string, string, string, error) {
-	parts := strings.SplitN(id, "/", 4)
+type fileVolumeID struct {
+	datastoreID string
+	contentType string
+	fileName    string
+}
 
-	if len(parts) != 4 || parts[0] == "" || parts[1] == "" || parts[2] == "" || parts[3] == "" {
-		return "", "", "", fmt.Errorf("unexpected format of ID (%s), expected node/datastore_id/content_type/file_name", id)
+func (v fileVolumeID) String() string {
+	return fmt.Sprintf("%s:%s/%s", v.datastoreID, v.contentType, v.fileName)
+}
+
+// fileParseVolumeID parses a volume ID in the format datastore_id:content_type/file_name.
+func fileParseVolumeID(id string) (fileVolumeID, error) {
+	parts := strings.SplitN(id, ":", 2)
+
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return fileVolumeID{}, fmt.Errorf("unexpected format of ID (%s), expected datastore_id:content_type/file_name", id)
 	}
 
-	return parts[0], parts[1], strings.Join(parts[2:], "/"), nil
+	datastoreID := parts[0]
+
+	parts = strings.SplitN(parts[1], "/", 2)
+
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return fileVolumeID{}, fmt.Errorf("unexpected format of ID (%s), expected datastore_id:content_type/file_name", id)
+	}
+
+	contentType := parts[0]
+	fileName := parts[1]
+
+	return fileVolumeID{
+		datastoreID: datastoreID,
+		contentType: contentType,
+		fileName:    fileName,
+	}, nil
+}
+
+// fileParseImportID parses an import ID in the format node/datastore_id:content_type/file_name.
+func fileParseImportID(id string) (string, fileVolumeID, error) {
+	parts := strings.SplitN(id, "/", 2)
+
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", fileVolumeID{},
+			fmt.Errorf("unexpected format of ID (%s), expected node/datastore_id:content_type/file_name", id)
+	}
+
+	node := parts[0]
+
+	volID, err := fileParseVolumeID(parts[1])
+	if err != nil {
+		return "", fileVolumeID{}, err
+	}
+
+	return node, volID, nil
 }
 
 func fileCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
@@ -234,11 +315,50 @@ func fileCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 	contentType, dg := fileGetContentType(d)
 	diags = append(diags, dg...)
 
-	datastoreID := d.Get(mkResourceVirtualEnvironmentFileDatastoreID).(string)
-	fileName, err := fileGetFileName(d)
+	fileName, err := fileGetSourceFileName(d)
 	diags = append(diags, diag.FromErr(err)...)
 
+	if diags.HasError() {
+		return diags
+	}
+
 	nodeName := d.Get(mkResourceVirtualEnvironmentFileNodeName).(string)
+	datastoreID := d.Get(mkResourceVirtualEnvironmentFileDatastoreID).(string)
+
+	config := m.(proxmoxtf.ProviderConfiguration)
+
+	capi, err := config.GetClient()
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	list, err := capi.Node(nodeName).Storage(datastoreID).ListDatastoreFiles(ctx)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	for _, file := range list {
+		volumeID, e := fileParseVolumeID(file.VolumeID)
+		if e != nil {
+			tflog.Warn(ctx, "failed to parse volume ID", map[string]interface{}{
+				"error": err,
+			})
+
+			continue
+		}
+
+		if volumeID.fileName == *fileName {
+			if d.Get(mkResourceVirtualEnvironmentFileOverwrite).(bool) {
+				diags = append(diags, diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  fmt.Sprintf("the existing file %q has been overwritten by the resource", volumeID),
+				})
+			} else {
+				return diag.Errorf("file %q already exists", volumeID)
+			}
+		}
+	}
+
 	sourceFile := d.Get(mkResourceVirtualEnvironmentFileSourceFile).([]interface{})
 	sourceRaw := d.Get(mkResourceVirtualEnvironmentFileSourceRaw).([]interface{})
 
@@ -265,6 +385,7 @@ func fileCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 		sourceFileBlock := sourceFile[0].(map[string]interface{})
 		sourceFilePath := sourceFileBlock[mkResourceVirtualEnvironmentFileSourceFilePath].(string)
 		sourceFileChecksum := sourceFileBlock[mkResourceVirtualEnvironmentFileSourceFileChecksum].(string)
+		sourceFileMinTLS := sourceFileBlock[mkResourceVirtualEnvironmentFileSourceFileMinTLS].(string)
 		sourceFileInsecure := sourceFileBlock[mkResourceVirtualEnvironmentFileSourceFileInsecure].(bool)
 
 		if fileIsURL(d) {
@@ -272,9 +393,15 @@ func fileCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 				"url": sourceFilePath,
 			})
 
+			version, e := api.GetMinTLSVersion(sourceFileMinTLS)
+			if e != nil {
+				return diag.FromErr(e)
+			}
+
 			httpClient := http.Client{
 				Transport: &http.Transport{
 					TLSClientConfig: &tls.Config{
+						MinVersion:         version,
 						InsecureSkipVerify: sourceFileInsecure,
 					},
 				},
@@ -287,7 +414,7 @@ func fileCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 
 			defer utils.CloseOrLogError(ctx)(res.Body)
 
-			tempDownloadedFile, err := os.CreateTemp("", "download")
+			tempDownloadedFile, err := os.CreateTemp(config.TempDir(), "download")
 			if err != nil {
 				return diag.FromErr(err)
 			}
@@ -347,7 +474,10 @@ func fileCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 				)
 			}
 		}
-	} else if len(sourceRaw) > 0 {
+	}
+
+	//nolint:nestif
+	if len(sourceRaw) > 0 {
 		sourceRawBlock := sourceRaw[0].(map[string]interface{})
 		sourceRawData := sourceRawBlock[mkResourceVirtualEnvironmentFileSourceRawData].(string)
 		sourceRawResize := sourceRawBlock[mkResourceVirtualEnvironmentFileSourceRawResize].(int)
@@ -360,8 +490,8 @@ func fileCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 			}
 		}
 
-		tempRawFile, err := os.CreateTemp("", "raw")
-		if err != nil {
+		tempRawFile, e := os.CreateTemp(config.TempDir(), "raw")
+		if e != nil {
 			return diag.FromErr(err)
 		}
 
@@ -385,13 +515,6 @@ func fileCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 		}(tempRawFileName)
 
 		sourceFilePathLocal = tempRawFileName
-	} else {
-		return diag.Errorf(
-			"please specify either \"%s.%s\" or \"%s\"",
-			mkResourceVirtualEnvironmentFileSourceFile,
-			mkResourceVirtualEnvironmentFileSourceFilePath,
-			mkResourceVirtualEnvironmentFileSourceRaw,
-		)
 	}
 
 	// Open the source file for reading in order to upload it.
@@ -409,13 +532,6 @@ func fileCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 		}
 	}(file)
 
-	config := m.(proxmoxtf.ProviderConfiguration)
-
-	capi, err := config.GetClient()
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
 	request := &api.FileUploadRequest{
 		ContentType: *contentType,
 		FileName:    *fileName,
@@ -424,7 +540,14 @@ func fileCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 
 	switch *contentType {
 	case "iso", "vztmpl":
-		_, err = capi.Node(nodeName).APIUpload(ctx, datastoreID, request)
+		uploadTimeoutSeconds := d.Get(mkResourceVirtualEnvironmentFileTimeoutUpload).(int)
+		uploadTimeout := time.Duration(uploadTimeoutSeconds) * time.Second
+
+		_, err = capi.Node(nodeName).Storage(datastoreID).APIUpload(ctx, request, uploadTimeout, config.TempDir())
+		if err != nil {
+			diags = append(diags, diag.FromErr(err)...)
+			return diags
+		}
 	default:
 		// For all other content types, we need to upload the file to the node's
 		// datastore using SFTP.
@@ -451,27 +574,58 @@ func fileCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 			}...)
 		}
 
-		remoteFileDir := *datastore.Path
+		// the temp directory is used to store the file on the node before moving it to the datastore
+		// will be created if it does not exist
+		tempFileDir := fmt.Sprintf("/tmp/tfpve/%s", uuid.NewString())
 
-		err = capi.SSH().NodeUpload(ctx, nodeName, remoteFileDir, request)
+		err = capi.SSH().NodeUpload(ctx, nodeName, tempFileDir, request)
+		if err != nil {
+			diags = append(diags, diag.FromErr(err)...)
+			return diags
+		}
+
+		// handle the case where the file is uploaded to a subdirectory of the datastore
+		srcDir := tempFileDir
+		dstDir := *datastore.Path
+
+		if request.ContentType != "" {
+			srcDir = tempFileDir + "/" + request.ContentType
+			dstDir = *datastore.Path + "/" + request.ContentType
+		}
+
+		_, err := capi.SSH().ExecuteNodeCommands(ctx, nodeName, []string{
+			// the `mv` command should be scoped to the specific directories in sudoers!
+			fmt.Sprintf(`%s; try_sudo "mv %s/%s %s/%s" && rmdir %s && rmdir %s || echo`,
+				ssh.TrySudo,
+				srcDir, *fileName,
+				dstDir, *fileName,
+				srcDir,
+				tempFileDir,
+			),
+		})
+		if err != nil {
+			if matches, e := regexp.MatchString(`cannot move .* Permission denied`, err.Error()); e == nil && matches {
+				return diag.FromErr(ssh.NewErrUserHasNoPermission(capi.SSH().Username()))
+			}
+
+			diags = append(diags, diag.Errorf("error moving file: %s", err.Error())...)
+
+			return diags
+		}
 	}
 
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	volumeID, di := fileGetVolumeID(d)
+	volID, di := fileGetVolumeID(d)
 	diags = append(diags, di...)
 	if diags.HasError() {
 		return diags
 	}
 
-	d.SetId(*volumeID)
+	d.SetId(volID.String())
 
 	diags = append(diags, fileRead(ctx, d, m)...)
 
 	if d.Id() == "" {
-		diags = append(diags, diag.Errorf("failed to read file from %q", *volumeID)...)
+		diags = append(diags, diag.Errorf("failed to read file from %q", volID.String())...)
 	}
 
 	return diags
@@ -523,13 +677,13 @@ func fileGetContentType(d *schema.ResourceData) (*string, diag.Diagnostics) {
 		}
 	}
 
-	ctValidator := getContentTypeValidator()
+	ctValidator := validator.ContentType()
 	diags := ctValidator(contentType, cty.GetAttrPath(mkResourceVirtualEnvironmentFileContentType))
 
 	return &contentType, diags
 }
 
-func fileGetFileName(d *schema.ResourceData) (*string, error) {
+func fileGetSourceFileName(d *schema.ResourceData) (*string, error) {
 	sourceFile := d.Get(mkResourceVirtualEnvironmentFileSourceFile).([]interface{})
 	sourceRaw := d.Get(mkResourceVirtualEnvironmentFileSourceRaw).([]interface{})
 
@@ -575,18 +729,20 @@ func fileGetFileName(d *schema.ResourceData) (*string, error) {
 	return &sourceFileFileName, nil
 }
 
-func fileGetVolumeID(d *schema.ResourceData) (*string, diag.Diagnostics) {
-	fileName, err := fileGetFileName(d)
+func fileGetVolumeID(d *schema.ResourceData) (fileVolumeID, diag.Diagnostics) {
+	fileName, err := fileGetSourceFileName(d)
 	if err != nil {
-		return nil, diag.FromErr(err)
+		return fileVolumeID{}, diag.FromErr(err)
 	}
 
 	datastoreID := d.Get(mkResourceVirtualEnvironmentFileDatastoreID).(string)
 	contentType, diags := fileGetContentType(d)
 
-	volumeID := fmt.Sprintf("%s:%s/%s", datastoreID, *contentType, *fileName)
-
-	return &volumeID, diags
+	return fileVolumeID{
+		datastoreID: datastoreID,
+		contentType: *contentType,
+		fileName:    *fileName,
+	}, diags
 }
 
 func fileIsURL(d *schema.ResourceData) bool {
@@ -614,53 +770,53 @@ func fileRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 	datastoreID := d.Get(mkResourceVirtualEnvironmentFileDatastoreID).(string)
 	nodeName := d.Get(mkResourceVirtualEnvironmentFileNodeName).(string)
 	sourceFile := d.Get(mkResourceVirtualEnvironmentFileSourceFile).([]interface{})
-	sourceFilePath := ""
 
-	if len(sourceFile) == 0 {
-		return nil
-	}
-
-	sourceFileBlock := sourceFile[0].(map[string]interface{})
-	sourceFilePath = sourceFileBlock[mkResourceVirtualEnvironmentFileSourceFilePath].(string)
-
-	list, err := capi.Node(nodeName).ListDatastoreFiles(ctx, datastoreID)
+	list, err := capi.Node(nodeName).Storage(datastoreID).ListDatastoreFiles(ctx)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	fileIsURL := fileIsURL(d)
-	fileName, err := fileGetFileName(d)
-	if err != nil {
-		return diag.FromErr(err)
+	readFileAttrs := readFile
+	if fileIsURL(d) {
+		readFileAttrs = readURL(capi.API().HTTP())
 	}
 
 	var diags diag.Diagnostics
 
+	found := false
 	for _, v := range list {
 		if v.VolumeID == d.Id() {
-			var fileModificationDate string
-			var fileSize int64
-			var fileTag string
+			found = true
 
-			if fileIsURL {
-				fileSize, fileModificationDate, fileTag, err = readURL(ctx, d, sourceFilePath)
-			} else {
-				fileModificationDate, fileSize, fileTag, err = readFile(ctx, sourceFilePath)
-			}
+			volID, err := fileParseVolumeID(v.VolumeID)
 			diags = append(diags, diag.FromErr(err)...)
 
-			lastFileMD := d.Get(mkResourceVirtualEnvironmentFileFileModificationDate).(string)
-			lastFileSize := int64(d.Get(mkResourceVirtualEnvironmentFileFileSize).(int))
-			lastFileTag := d.Get(mkResourceVirtualEnvironmentFileFileTag).(string)
+			err = d.Set(mkResourceVirtualEnvironmentFileFileName, volID.fileName)
+			diags = append(diags, diag.FromErr(err)...)
+
+			err = d.Set(mkResourceVirtualEnvironmentFileContentType, v.ContentType)
+			diags = append(diags, diag.FromErr(err)...)
+
+			if len(sourceFile) == 0 {
+				continue
+			}
+
+			sourceFileBlock := sourceFile[0].(map[string]interface{})
+			sourceFilePath := sourceFileBlock[mkResourceVirtualEnvironmentFileSourceFilePath].(string)
+
+			fileModificationDate, fileSize, fileTag, err := readFileAttrs(ctx, sourceFilePath)
+			diags = append(diags, diag.FromErr(err)...)
 
 			err = d.Set(mkResourceVirtualEnvironmentFileFileModificationDate, fileModificationDate)
-			diags = append(diags, diag.FromErr(err)...)
-			err = d.Set(mkResourceVirtualEnvironmentFileFileName, *fileName)
 			diags = append(diags, diag.FromErr(err)...)
 			err = d.Set(mkResourceVirtualEnvironmentFileFileSize, fileSize)
 			diags = append(diags, diag.FromErr(err)...)
 			err = d.Set(mkResourceVirtualEnvironmentFileFileTag, fileTag)
 			diags = append(diags, diag.FromErr(err)...)
+
+			lastFileMD := d.Get(mkResourceVirtualEnvironmentFileFileModificationDate).(string)
+			lastFileSize := int64(d.Get(mkResourceVirtualEnvironmentFileFileSize).(int))
+			lastFileTag := d.Get(mkResourceVirtualEnvironmentFileFileTag).(string)
 
 			// just to make the logic easier to read
 			changed := false
@@ -679,7 +835,11 @@ func fileRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 		}
 	}
 
-	d.SetId("")
+	if !found {
+		// an empty ID is used to signal that the resource does not exist when provider reads the state
+		// back after creation, or on the state refresh.
+		d.SetId("")
+	}
 
 	return nil
 }
@@ -715,56 +875,59 @@ func readFile(
 	return fileModificationDate, fileSize, fileTag, nil
 }
 
-//nolint:nonamedreturns
 func readURL(
+	httClient *http.Client,
+) func(
 	ctx context.Context,
-	d *schema.ResourceData,
 	sourceFilePath string,
-) (fileSize int64, fileModificationDate string, fileTag string, err error) {
-	res, err := http.Head(sourceFilePath)
-	if err != nil {
-		return
-	}
-
-	defer utils.CloseOrLogError(ctx)(res.Body)
-
-	fileSize = res.ContentLength
-	httpLastModified := res.Header.Get("Last-Modified")
-
-	if httpLastModified != "" {
-		var timeParsed time.Time
-		timeParsed, err = time.Parse(time.RFC1123, httpLastModified)
-
+) (fileModificationDate string, fileSize int64, fileTag string, err error) {
+	return func(
+		ctx context.Context,
+		sourceFilePath string,
+	) (string, int64, string, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodHead, sourceFilePath, nil)
 		if err != nil {
-			timeParsed, err = time.Parse(time.RFC1123Z, httpLastModified)
+			return "", 0, "", fmt.Errorf("failed to create a new request: %w", err)
+		}
+
+		res, err := httClient.Do(req) //nolint:bodyclose
+		if err != nil {
+			return "", 0, "", fmt.Errorf("failed to HEAD the URL: %w", err)
+		}
+
+		defer utils.CloseOrLogError(ctx)(res.Body)
+
+		fileModificationDate := ""
+		fileSize := res.ContentLength
+		fileTag := ""
+		httpLastModified := res.Header.Get("Last-Modified")
+
+		if httpLastModified != "" {
+			var timeParsed time.Time
+			timeParsed, err = time.Parse(time.RFC1123, httpLastModified)
+
 			if err != nil {
-				return
+				timeParsed, err = time.Parse(time.RFC1123Z, httpLastModified)
+				if err != nil {
+					return fileModificationDate, fileSize, fileTag, fmt.Errorf("failed to parse Last-Modified header: %w", err)
+				}
+			}
+
+			fileModificationDate = timeParsed.UTC().Format(time.RFC3339)
+		}
+
+		httpTag := res.Header.Get("ETag")
+
+		if httpTag != "" {
+			httpTagParts := strings.Split(httpTag, "\"")
+
+			if len(httpTagParts) > 1 {
+				fileTag = httpTagParts[1]
 			}
 		}
 
-		fileModificationDate = timeParsed.UTC().Format(time.RFC3339)
-	} else {
-		err = d.Set(mkResourceVirtualEnvironmentFileFileModificationDate, "")
-		if err != nil {
-			return
-		}
+		return fileModificationDate, fileSize, fileTag, nil
 	}
-
-	httpTag := res.Header.Get("ETag")
-
-	if httpTag != "" {
-		httpTagParts := strings.Split(httpTag, "\"")
-
-		if len(httpTagParts) > 1 {
-			fileTag = httpTagParts[1]
-		} else {
-			fileTag = ""
-		}
-	} else {
-		fileTag = ""
-	}
-
-	return
 }
 
 func fileDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
@@ -777,7 +940,7 @@ func fileDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 	datastoreID := d.Get(mkResourceVirtualEnvironmentFileDatastoreID).(string)
 	nodeName := d.Get(mkResourceVirtualEnvironmentFileNodeName).(string)
 
-	err = capi.Node(nodeName).DeleteDatastoreFile(ctx, datastoreID, d.Id())
+	err = capi.Node(nodeName).Storage(datastoreID).DeleteDatastoreFile(ctx, d.Id())
 
 	if err != nil {
 		if strings.Contains(err.Error(), "HTTP 404") {
@@ -790,5 +953,11 @@ func fileDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 
 	d.SetId("")
 
+	return nil
+}
+
+func fileUpdate(_ context.Context, _ *schema.ResourceData, _ interface{}) diag.Diagnostics {
+	// a pass-through update function -- no actual resource update is needed / allowed
+	// only the TF state is updated, for example, a timeout_upload attribute value
 	return nil
 }

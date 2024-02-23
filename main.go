@@ -19,20 +19,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-mux/tf6muxserver"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	_ "github.com/bpg/terraform-provider-proxmox/internal/access"
-	_ "github.com/bpg/terraform-provider-proxmox/internal/network"
-
-	newProvider "github.com/bpg/terraform-provider-proxmox/internal/provider"
+	"github.com/bpg/terraform-provider-proxmox/fwprovider"
 	"github.com/bpg/terraform-provider-proxmox/proxmoxtf/provider"
 )
 
-// If you do not have terraform installed, you can remove the formatting command, but it's suggested to
-// ensure the documentation is formatted properly.
-//go:generate terraform fmt -recursive ./example/
-
-// Run the docs generation tool, check its repository for more information on how it works and how docs
-// can be customized.
-//go:generate go run -modfile=tools/go.mod github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
+// these will be set by the goreleaser configuration
+// to appropriate values for the compiled binary.
+var version = "dev"
 
 func main() {
 	ctx := context.Background()
@@ -55,7 +48,7 @@ func main() {
 	}
 
 	providers := []func() tfprotov6.ProviderServer{
-		providerserver.NewProtocol6(newProvider.New("dev")()),
+		providerserver.NewProtocol6(fwprovider.New(version)()),
 		func() tfprotov6.ProviderServer {
 			return upgradedSdkServer
 		},

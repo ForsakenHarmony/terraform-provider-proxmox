@@ -8,6 +8,7 @@ package tasks
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/bpg/terraform-provider-proxmox/proxmox/api"
 )
@@ -18,8 +19,30 @@ type Client struct {
 }
 
 // ExpandPath expands a path relative to the client's base path.
-func (c *Client) ExpandPath(path string) string {
-	return c.Client.ExpandPath(
-		fmt.Sprintf("tasks/%s", path),
-	)
+func (c *Client) ExpandPath(_ string) string {
+	panic("ExpandPath of tasks.Client must not be used. Use BuildPath instead.")
+}
+
+func (c *Client) baseTaskPath(taskID string) (string, error) {
+	tid, err := ParseTaskID(taskID)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("nodes/%s/tasks/%s",
+		url.PathEscape(tid.NodeName),
+		url.PathEscape(taskID),
+	), nil
+}
+
+// BuildPath builds a path using information from Task ID.
+func (c *Client) BuildPath(taskID string, path string) (string, error) {
+	basePath, err := c.baseTaskPath(taskID)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s/%s",
+		basePath, url.PathEscape(path),
+	), nil
 }

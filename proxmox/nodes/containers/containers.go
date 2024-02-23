@@ -30,13 +30,34 @@ func (c *Client) CloneContainer(ctx context.Context, d *CloneRequestBody) error 
 }
 
 // CreateContainer creates a container.
-func (c *Client) CreateContainer(ctx context.Context, d *CreateRequestBody) error {
-	err := c.DoRequest(ctx, http.MethodPost, c.basePath(), d, nil)
+func (c *Client) CreateContainer(ctx context.Context, d *CreateRequestBody, timeout time.Duration) error {
+	taskID, err := c.CreateContainerAsync(ctx, d)
 	if err != nil {
-		return fmt.Errorf("error creating container: %w", err)
+		return err
+	}
+
+	err = c.Tasks().WaitForTask(ctx, *taskID, timeout, 5*time.Second)
+	if err != nil {
+		return fmt.Errorf("error waiting for container created: %w", err)
 	}
 
 	return nil
+}
+
+// CreateContainerAsync creates a container asynchronously.
+func (c *Client) CreateContainerAsync(ctx context.Context, d *CreateRequestBody) (*string, error) {
+	resBody := &CreateResponseBody{}
+
+	err := c.DoRequest(ctx, http.MethodPost, c.basePath(), d, resBody)
+	if err != nil {
+		return nil, fmt.Errorf("error creating container: %w", err)
+	}
+
+	if resBody.Data == nil {
+		return nil, api.ErrNoDataObjectInResponse
+	}
+
+	return resBody.Data, nil
 }
 
 // DeleteContainer deletes a container.
@@ -101,14 +122,50 @@ func (c *Client) ShutdownContainer(ctx context.Context, d *ShutdownRequestBody) 
 	return nil
 }
 
-// StartContainer starts a container.
-func (c *Client) StartContainer(ctx context.Context) error {
-	err := c.DoRequest(ctx, http.MethodPost, c.ExpandPath("status/start"), nil, nil)
+// StartContainer starts a container if is not already running.
+func (c *Client) StartContainer(ctx context.Context, timeout time.Duration) error {
+	status, err := c.GetContainerStatus(ctx)
+	if err != nil {
+		return fmt.Errorf("error retrieving container status: %w", err)
+	}
+
+	if status.Status == "running" {
+		return nil
+	}
+
+	taskID, err := c.StartContainerAsync(ctx)
 	if err != nil {
 		return fmt.Errorf("error starting container: %w", err)
 	}
 
+	err = c.Tasks().WaitForTask(ctx, *taskID, timeout, 5*time.Second)
+	if err != nil {
+		return fmt.Errorf("error waiting for container start: %w", err)
+	}
+
+	// the timeout here should probably be configurable
+	err = c.WaitForContainerStatus(ctx, "running", timeout*2, 5*time.Second)
+	if err != nil {
+		return fmt.Errorf("error waiting for container start: %w", err)
+	}
+
 	return nil
+}
+
+// StartContainerAsync starts a container asynchronously.
+func (c *Client) StartContainerAsync(ctx context.Context) (*string, error) {
+	resBody := &StartResponseBody{}
+
+	err := c.DoRequest(ctx, http.MethodPost, c.ExpandPath("status/start"), nil, resBody)
+	if err != nil {
+		return nil, fmt.Errorf("error starting container: %w", err)
+	}
+
+	if resBody.Data == nil {
+		return nil, api.ErrNoDataObjectInResponse
+	}
+
+	return resBody.Data, nil
 }
 
 // StopContainer stops a container immediately.
@@ -131,14 +188,14 @@ func (c *Client) UpdateContainer(ctx context.Context, d *UpdateRequestBody) erro
 	return nil
 }
 
-// WaitForContainerState waits for a container to reach a specific state.
-func (c *Client) WaitForContainerState(
+// WaitForContainerStatus waits for a container to reach a specific state.
+func (c *Client) WaitForContainerStatus(
 	ctx context.Context,
-	state string,
+	status string,
 	timeout time.Duration,
 	delay time.Duration,
 ) error {
-	state = strings.ToLower(state)
+	status = strings.ToLower(status)
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -151,7 +208,7 @@ func (c *Client) WaitForContainerState(
 			return backoff.Permanent(fmt.Errorf("error retrieving container status: %w", err))
 		}
 
-		if data.Status == state {
+		if data.Status == status {
 			return nil
 		}
 
@@ -159,9 +216,9 @@ func (c *Client) WaitForContainerState(
 	}, b)
 	if err != nil {
 		return fmt.Errorf(
-			"error waiting for container \"%d\" to enter state \"%s\": %w",
+			"error waiting for container \"%d\" to enter status \"%s\": %w",
 			c.VMID,
-			state,
+			status,
 			err,
 		)
 	}

@@ -15,22 +15,28 @@ import (
 )
 
 const (
-	dvProviderOTP            = ""
-	mkProviderEndpoint       = "endpoint"
-	mkProviderInsecure       = "insecure"
-	mkProviderOTP            = "otp"
-	mkProviderPassword       = "password"
-	mkProviderUsername       = "username"
-	mkProviderAPIToken       = "api_token"
-	mkProviderSSH            = "ssh"
-	mkProviderSSHUsername    = "username"
-	mkProviderSSHPassword    = "password"
-	mkProviderSSHAgent       = "agent"
-	mkProviderSSHAgentSocket = "agent_socket"
+	dvProviderOTP               = ""
+	mkProviderEndpoint          = "endpoint"
+	mkProviderInsecure          = "insecure"
+	mkProviderMinTLS            = "min_tls"
+	mkProviderOTP               = "otp"
+	mkProviderPassword          = "password"
+	mkProviderUsername          = "username"
+	mkProviderAPIToken          = "api_token"
+	mkProviderTmpDir            = "tmp_dir"
+	mkProviderSSH               = "ssh"
+	mkProviderSSHUsername       = "username"
+	mkProviderSSHPassword       = "password"
+	mkProviderSSHAgent          = "agent"
+	mkProviderSSHAgentSocket    = "agent_socket"
+	mkProviderSSHSocks5Server   = "socks5_server"
+	mkProviderSSHSocks5Username = "socks5_username"
+	mkProviderSSHSocks5Password = "socks5_password"
 
 	mkProviderSSHNode        = "node"
 	mkProviderSSHNodeName    = "name"
 	mkProviderSSHNodeAddress = "address"
+	mkProviderSSHNodePort    = "port"
 )
 
 func createSchema() map[string]*schema.Schema {
@@ -45,6 +51,12 @@ func createSchema() map[string]*schema.Schema {
 			Type:        schema.TypeBool,
 			Optional:    true,
 			Description: "Whether to skip the TLS verification step.",
+		},
+		mkProviderMinTLS: {
+			Type:     schema.TypeString,
+			Optional: true,
+			Description: "The minimum required TLS version for API calls." +
+				"Supported values: `1.0|1.1|1.2|1.3`. Defaults to `1.3`.",
 		},
 		mkProviderOTP: {
 			Type:        schema.TypeString,
@@ -136,6 +148,40 @@ func createSchema() map[string]*schema.Schema {
 						),
 						ValidateFunc: validation.StringIsNotEmpty,
 					},
+					mkProviderSSHSocks5Server: {
+						Type:     schema.TypeString,
+						Optional: true,
+						Description: "The address:port of the SOCKS5 proxy server. " +
+							"Defaults to the value of the `PROXMOX_VE_SSH_SOCKS5_SERVER` environment variable.",
+						DefaultFunc: schema.MultiEnvDefaultFunc(
+							[]string{"PROXMOX_VE_SSH_SOCKS5_SERVER"},
+							nil,
+						),
+						ValidateFunc: validation.StringIsNotEmpty,
+					},
+					mkProviderSSHSocks5Username: {
+						Type:     schema.TypeString,
+						Optional: true,
+						Description: "The username for the SOCKS5 proxy server. " +
+							"Defaults to the value of the `PROXMOX_VE_SSH_SOCKS5_USERNAME` environment variable.",
+						DefaultFunc: schema.MultiEnvDefaultFunc(
+							[]string{"PROXMOX_VE_SSH_SOCKS5_USERNAME"},
+							nil,
+						),
+						ValidateFunc: validation.StringIsNotEmpty,
+					},
+					mkProviderSSHSocks5Password: {
+						Type:      schema.TypeString,
+						Optional:  true,
+						Sensitive: true,
+						Description: "The password for the SOCKS5 proxy server. " +
+							"Defaults to the value of the `PROXMOX_VE_SSH_SOCKS5_PASSWORD` environment variable.",
+						DefaultFunc: schema.MultiEnvDefaultFunc(
+							[]string{"PROXMOX_VE_SSH_SOCKS5_PASSWORD"},
+							nil,
+						),
+						ValidateFunc: validation.StringIsNotEmpty,
+					},
 					mkProviderSSHNode: {
 						Type:        schema.TypeList,
 						Optional:    true,
@@ -153,13 +199,26 @@ func createSchema() map[string]*schema.Schema {
 									Type:         schema.TypeString,
 									Required:     true,
 									Description:  "The address of the Proxmox VE node.",
-									ValidateFunc: validation.IsIPAddress,
+									ValidateFunc: validation.StringIsNotEmpty,
+								},
+								mkProviderSSHNodePort: {
+									Type:         schema.TypeInt,
+									Optional:     true,
+									Description:  "The port of the Proxmox VE node.",
+									Default:      22,
+									ValidateFunc: validation.IsPortNumber,
 								},
 							},
 						},
 					},
 				},
 			},
+		},
+		mkProviderTmpDir: {
+			Type:         schema.TypeString,
+			Optional:     true,
+			Description:  "The alternative temporary directory.",
+			ValidateFunc: validation.StringIsNotEmpty,
 		},
 	}
 }

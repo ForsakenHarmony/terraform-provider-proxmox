@@ -1,8 +1,6 @@
 ---
 layout: page
 title: proxmox_virtual_environment_vms
-permalink: /data-sources/virtual_environment_vms
-nav_order: 22
 parent: Data Sources
 subcategory: Virtual Environment
 ---
@@ -21,7 +19,7 @@ data "proxmox_virtual_environment_vms" "ubuntu_vms" {
 
 ## Argument Reference
 
-- `node_name` - (Optional) The node name. 
+- `node_name` - (Optional) The node name.
 - `tags` - (Optional) A list of tags to filter the VMs. The VM must have all
   the tags to be included in the result.
 

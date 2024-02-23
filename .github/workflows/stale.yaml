@@ -1,7 +1,9 @@
 name: Manage Stale Items
-'on':
+
+on:
   schedule:
     - cron: 00 00 * * *
+
 jobs:
   stale:
     runs-on: ubuntu-latest
@@ -9,13 +11,23 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/stale@v8
+      - name: Generate Short Lived OAuth App Token
+        uses: actions/create-github-app-token@f4c6bf6752984b3a29fcc135a5e70eb792c40c6b # v1.8.0
+        id: app-token
         with:
-          repo-token: '${{ secrets.GITHUB_TOKEN }}'
+          app-id: "${{ secrets.BOT_APP_ID }}"
+          private-key: "${{ secrets.BOT_APP_PRIVATE_KEY }}"
+          owner: "${{ github.repository_owner }}"
+          repositories: "${{ github.event.repository.name }}"
+
+      - name: Stale Issues and Pull Requests
+        uses: actions/stale@v9
+        with:
+          repo-token: "${{ steps.app-token.outputs.token }}"
           days-before-stale: 180
           days-before-close: 30
-          exempt-issue-labels: 'needs-triage, acknowledged, in-progress'
-          exempt-pr-labels: 'needs-review, under-review, acknowledged, planned'
+          exempt-issue-labels: "needs-triage, acknowledged, in-progress"
+          exempt-pr-labels: "needs-review, under-review, acknowledged, planned"
           remove-stale-when-updated: true
           delete-branch: false
           stale-issue-label: stale

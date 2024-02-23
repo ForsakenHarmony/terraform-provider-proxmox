@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/bpg/terraform-provider-proxmox/proxmox/api"
+	"github.com/bpg/terraform-provider-proxmox/proxmox/helpers/ptr"
 )
 
 // CloneVM clones a virtual machine.
@@ -27,14 +30,13 @@ func (c *Client) CloneVM(ctx context.Context, retries int, d *CloneRequestBody, 
 
 	resBody := &MoveDiskResponseBody{}
 
-	// just a guard in case someone sets retries to 0 unknowingly
+	// just a guard in case someone sets retries to zero unknowingly
 	if retries <= 0 {
 		retries = 1
 	}
 
 	for i := 0; i < retries; i++ {
 		err = c.DoRequest(ctx, http.MethodPost, c.ExpandPath("clone"), d, resBody)
-
 		if err != nil {
 			return fmt.Errorf("error cloning VM: %w", err)
 		}
@@ -66,7 +68,6 @@ func (c *Client) CreateVM(ctx context.Context, d *CreateRequestBody, timeout tim
 	}
 
 	err = c.Tasks().WaitForTask(ctx, *taskID, timeout, 1*time.Second)
-
 	if err != nil {
 		return fmt.Errorf("error waiting for VM creation: %w", err)
 	}
@@ -263,41 +264,34 @@ func (c *Client) RebootVMAsync(ctx context.Context, d *RebootRequestBody) (*stri
 }
 
 // ResizeVMDisk resizes a virtual machine disk.
-func (c *Client) ResizeVMDisk(ctx context.Context, d *ResizeDiskRequestBody) error {
-	var err error
-
-	tflog.Debug(ctx, "resize disk", map[string]interface{}{
-		"disk": d.Disk,
-		"size": d.Size,
-	})
-
-	for i := 0; i < 5; i++ {
-		err = c.DoRequest(
-			ctx,
-			http.MethodPut,
-			c.ExpandPath("resize"),
-			d,
-			nil,
-		)
-		if err == nil {
-			return nil
-		}
-
-		tflog.Debug(ctx, "resize disk failed", map[string]interface{}{
-			"retry": i,
-		})
-		time.Sleep(5 * time.Second)
-
-		if ctx.Err() != nil {
-			return fmt.Errorf("error resizing VM disk: %w", ctx.Err())
-		}
+func (c *Client) ResizeVMDisk(ctx context.Context, d *ResizeDiskRequestBody, timeout time.Duration) error {
+	taskID, err := c.ResizeVMDiskAsync(ctx, d)
+	if err != nil {
+		return err
 	}
 
+	err = c.Tasks().WaitForTask(ctx, *taskID, timeout, 5)
 	if err != nil {
-		return fmt.Errorf("error resizing VM disk: %w", err)
+		return fmt.Errorf("error waiting for VM disk resize: %w", err)
 	}
 
 	return nil
+}
+
+// ResizeVMDiskAsync resizes a virtual machine disk asynchronously.
+func (c *Client) ResizeVMDiskAsync(ctx context.Context, d *ResizeDiskRequestBody) (*string, error) {
+	resBody := &MoveDiskResponseBody{}
+
+	err := c.DoRequest(ctx, http.MethodPut, c.ExpandPath("resize"), d, resBody)
+	if err != nil {
+		return nil, fmt.Errorf("error moving VM disk: %w", err)
+	}
+
+	if resBody.Data == nil {
+		return nil, api.ErrNoDataObjectInResponse
+	}
+
+	return resBody.Data, nil
 }
 
 // ShutdownVM shuts down a virtual machine.
@@ -332,25 +326,43 @@ func (c *Client) ShutdownVMAsync(ctx context.Context, d *ShutdownRequestBody) (*
 }
 
 // StartVM starts a virtual machine.
-func (c *Client) StartVM(ctx context.Context, timeout time.Duration) error {
-	taskID, err := c.StartVMAsync(ctx)
+// Returns the task log if the VM had warnings at startup, or fails to start.
+func (c *Client) StartVM(ctx context.Context, timeout time.Duration) ([]string, error) {
+	taskID, err := c.StartVMAsync(ctx, timeout)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = c.Tasks().WaitForTask(ctx, *taskID, timeout, 5*time.Second)
 	if err != nil {
-		return fmt.Errorf("error waiting for VM start: %w", err)
+		log, e := c.Tasks().GetTaskLog(ctx, *taskID)
+		if e != nil {
+			tflog.Error(ctx, "error retrieving task log", map[string]interface{}{
+				"task_id": *taskID,
+				"error":   e.Error(),
+			})
+
+			log = []string{}
+		}
+
+		if strings.Contains(err.Error(), "WARNING") && len(log) > 0 {
+			return log, nil
+		}
+
+		return log, fmt.Errorf("error waiting for VM start: %w", err)
 	}
 
-	return nil
+	return nil, nil
 }
 
 // StartVMAsync starts a virtual machine asynchronously.
-func (c *Client) StartVMAsync(ctx context.Context) (*string, error) {
+func (c *Client) StartVMAsync(ctx context.Context, timeout time.Duration) (*string, error) {
+	reqBody := &StartRequestBody{
+		TimeoutSeconds: ptr.Ptr(int(timeout.Seconds())),
+	}
 	resBody := &StartResponseBody{}
 
-	err := c.DoRequest(ctx, http.MethodPost, c.ExpandPath("status/start"), nil, resBody)
+	err := c.DoRequest(ctx, http.MethodPost, c.ExpandPath("status/start"), reqBody, resBody)
 	if err != nil {
 		return nil, fmt.Errorf("error starting VM: %w", err)
 	}
@@ -422,16 +434,33 @@ func (c *Client) UpdateVMAsync(ctx context.Context, d *UpdateRequestBody) (*stri
 // WaitForNetworkInterfacesFromVMAgent waits for a virtual machine's QEMU agent to publish the network interfaces.
 func (c *Client) WaitForNetworkInterfacesFromVMAgent(
 	ctx context.Context,
-	timeout time.Duration,
-	delay time.Duration,
-	waitForIP bool,
+	timeout time.Duration, // time in seconds to wait until giving up
+	delay time.Duration, // the delay in seconds between requests to the agent
+	waitForIP bool, // whether or not to block until an IP is found, or just block until the interfaces are published
 ) (*GetQEMUNetworkInterfacesResponseData, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt)
+
 	b := backoff.WithContext(backoff.NewConstantBackOff(delay), ctx)
 
 	data, err := backoff.RetryWithData(func() (*GetQEMUNetworkInterfacesResponseData, error) {
+		select {
+		case <-ch:
+			{
+				// the returned error will be eaten by the terraform runtime, so we log it here as well
+				const msg = "interrupted by signal"
+
+				tflog.Warn(ctx, msg)
+
+				return nil, backoff.Permanent(fmt.Errorf(msg))
+			}
+		default:
+		}
+
+		// request the network interfaces from the agent
 		data, err := c.GetVMNetworkInterfacesFromAgent(ctx)
 		if err != nil {
 			return nil, err
@@ -442,19 +471,28 @@ func (c *Client) WaitForNetworkInterfacesFromVMAgent(
 		}
 
 		if !waitForIP {
-			return data, err
+			// if not waiting for an IP, and the agent sent us an interface, return
+			if len(*data.Result) > 0 {
+				return data, err
+			}
+
+			return nil, errors.New("not ready")
 		}
 
+		// If we're waiting for an IP, check if we have one yet; if not then keep looping
 		for _, nic := range *data.Result {
+			// skip the loopback interface
 			if nic.Name == "lo" {
 				continue
 			}
 
+			// skip the interface if it has no IP addresses
 			if nic.IPAddresses == nil ||
 				(nic.IPAddresses != nil && len(*nic.IPAddresses) == 0) {
-				break
+				continue
 			}
 
+			// return if the interface has any global unicast addresses
 			for _, addr := range *nic.IPAddresses {
 				if ip := net.ParseIP(addr.Address); ip != nil && ip.IsGlobalUnicast() {
 					return data, err
@@ -548,8 +586,8 @@ func (c *Client) WaitForVMConfigUnlock(
 	return nil
 }
 
-// WaitForVMState waits for a virtual machine to reach a specific state.
-func (c *Client) WaitForVMState(ctx context.Context, state string, timeout time.Duration, delay time.Duration) error {
+// WaitForVMStatus waits for a virtual machine to reach a specific status.
+func (c *Client) WaitForVMStatus(ctx context.Context, state string, timeout time.Duration, delay time.Duration) error {
 	state = strings.ToLower(state)
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)

@@ -1,8 +1,6 @@
 ---
 layout: page
 title: proxmox_virtual_environment_cluster_firewall
-permalink: /resources/virtual_environment_cluster_firewall
-nav_order: 2
 parent: Resources
 subcategory: Virtual Environment
 ---
@@ -37,8 +35,9 @@ resource "proxmox_virtual_environment_cluster_firewall" "example" {
 - `log_ratelimit` - (Optional) The log rate limit.
     - `enabled` - (Optional) Enable or disable the log rate limit.
     - `burst` - (Optional) Initial burst of packages which will always get
-      logged before the rate is applied (defaults to `5`).
-    - `rate` - (Optional) Frequency with which the burst bucket gets refilled (defaults to `1/second`).
+        logged before the rate is applied (defaults to `5`).
+    - `rate` - (Optional) Frequency with which the burst bucket gets refilled
+        (defaults to `1/second`).
 
 ## Attribute Reference
 
@@ -53,5 +52,5 @@ Be careful not to use this resource multiple times for the same node.
 Instances can be imported without an ID, but you still need to pass one, e.g.,
 
 ```bash
-$ terraform import proxmox_virtual_environment_cluster_firewall.example example
+terraform import proxmox_virtual_environment_cluster_firewall.example example
 ```

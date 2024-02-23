@@ -10,13 +10,14 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 
-	"github.com/bpg/terraform-provider-proxmox/internal/types"
 	"github.com/bpg/terraform-provider-proxmox/proxmox/firewall"
+	"github.com/bpg/terraform-provider-proxmox/proxmox/types"
 	"github.com/bpg/terraform-provider-proxmox/proxmoxtf/resource/validator"
 	"github.com/bpg/terraform-provider-proxmox/proxmoxtf/structure"
 )
@@ -200,11 +201,13 @@ func RulesCreate(ctx context.Context, api firewall.Rule, d *schema.ResourceData)
 		} else {
 			a := rule[mkRuleAction].(string)
 			t := rule[mkRuleType].(string)
+
 			if a == "" || t == "" {
 				diags = append(diags, diag.Errorf("Either '%s' OR both '%s' and '%s' must be defined for the rule #%d",
 					mkSecurityGroup, mkRuleAction, mkRuleType, i)...)
 				continue
 			}
+
 			ruleBody = firewall.RuleCreateRequestBody{
 				Action:   a,
 				Type:     t,
@@ -238,6 +241,11 @@ func RulesRead(ctx context.Context, api firewall.Rule, d *schema.ResourceData) d
 	readRule := func(pos int, ruleMap map[string]interface{}) error {
 		rule, err := api.GetRule(ctx, pos)
 		if err != nil {
+			if strings.Contains(err.Error(), "no rule at position") {
+				// this is not an error, the rule does not exist
+				return nil
+			}
+
 			return fmt.Errorf("error reading rule %d : %w", pos, err)
 		}
 
@@ -272,12 +280,14 @@ func RulesRead(ctx context.Context, api firewall.Rule, d *schema.ResourceData) d
 		if err != nil {
 			return diag.FromErr(err)
 		}
+
 		for _, id := range ruleIDs {
 			ruleMap := map[string]interface{}{}
+
 			err = readRule(id.Pos, ruleMap)
 			if err != nil {
 				diags = append(diags, diag.FromErr(err)...)
-			} else {
+			} else if len(ruleMap) > 0 {
 				rules = append(rules, ruleMap)
 			}
 		}
@@ -341,13 +351,21 @@ func RulesDelete(ctx context.Context, api firewall.Rule, d *schema.ResourceData)
 	sort.Slice(rules, func(i, j int) bool {
 		ruleI := rules[i].(map[string]interface{})
 		ruleJ := rules[j].(map[string]interface{})
+
 		return ruleI[mkRulePos].(int) > ruleJ[mkRulePos].(int)
 	})
 
 	for _, v := range rules {
 		rule := v.(map[string]interface{})
 		pos := rule[mkRulePos].(int)
-		err := api.DeleteRule(ctx, pos)
+
+		_, err := api.GetRule(ctx, pos)
+		if err != nil {
+			// if the rule is not found / can't be retrieved, we can safely ignore it
+			continue
+		}
+
+		err = api.DeleteRule(ctx, pos)
 		diags = append(diags, diag.FromErr(err)...)
 	}
 

@@ -1,8 +1,6 @@
 ---
 layout: page
 title: proxmox_virtual_environment_role
-permalink: /resources/virtual_environment_role
-nav_order: 14
 parent: Resources
 subcategory: Virtual Environment
 ---
@@ -37,5 +35,5 @@ There are no additional attributes available for this resource.
 Instances can be imported using the `role_id`, e.g.,
 
 ```bash
-$ terraform import proxmox_virtual_environment_role.operations_monitoring operations-monitoring
+terraform import proxmox_virtual_environment_role.operations_monitoring operations-monitoring
 ```

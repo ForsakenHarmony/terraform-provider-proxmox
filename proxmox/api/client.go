@@ -16,23 +16,19 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
-	"time"
 
 	"github.com/google/go-querystring/query"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/logging"
+	"golang.org/x/exp/maps"
 
 	"github.com/bpg/terraform-provider-proxmox/utils"
 )
 
-// ErrNoDataObjectInResponse is returned when the server does not include a data object in the response.
-var ErrNoDataObjectInResponse = errors.New("the server did not include a data object in the response")
-
 const (
-	// the large timeout is to allow for large file uploads.
-	httpClientTimeout = 5 * time.Minute
-	basePathJSONAPI   = "api2/json"
+	basePathJSONAPI = "api2/json"
 )
 
 // Client is an interface for performing requests against the Proxmox API.
@@ -56,6 +52,9 @@ type Client interface {
 	// IsRootTicket returns true if the authenticator is configured to use the root directly using a login ticket.
 	// (root using token is weaker, cannot change VM arch)
 	IsRootTicket() bool
+
+	// HTTP returns a lower-level HTTP client.
+	HTTP() *http.Client
 }
 
 // Connection represents a connection to the Proxmox Virtual Environment API.
@@ -65,7 +64,7 @@ type Connection struct {
 }
 
 // NewConnection creates and initializes a Connection instance.
-func NewConnection(endpoint string, insecure bool) (*Connection, error) {
+func NewConnection(endpoint string, insecure bool, minTLS string) (*Connection, error) {
 	u, err := url.ParseRequestURI(endpoint)
 	if err != nil {
 		return nil, errors.New(
@@ -79,8 +78,16 @@ func NewConnection(endpoint string, insecure bool) (*Connection, error) {
 		)
 	}
 
+	version, err := GetMinTLSVersion(minTLS)
+	if err != nil {
+		return nil, err
+	}
+
 	var transport http.RoundTripper = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		TLSClientConfig: &tls.Config{
+			// deepcode ignore InsecureTLSConfig: the min TLS version is configurable
+			MinVersion:         version,
 			InsecureSkipVerify: insecure, //nolint:gosec
 		},
 	}
@@ -89,11 +96,13 @@ func NewConnection(endpoint string, insecure bool) (*Connection, error) {
 		transport = logging.NewLoggingHTTPTransport(transport)
 	}
 
+	// make sure the path does not contain "/api2/json"
+	u.Path = ""
+
 	return &Connection{
 		endpoint: strings.TrimRight(u.String(), "/"),
 		httpClient: &http.Client{
 			Transport: transport,
-			Timeout:   httpClientTimeout,
 		},
 	}, nil
 }
@@ -264,6 +273,7 @@ func (c *client) DoRequest(
 				err,
 			)
 		}
+
 		if len(data) > 0 {
 			dr := dataResponse{}
 
@@ -272,6 +282,7 @@ func (c *client) DoRequest(
 					return nil
 				}
 			}
+
 			tflog.Warn(ctx, "unhandled HTTP response body", map[string]interface{}{
 				"data": dr.Data,
 			})
@@ -300,10 +311,14 @@ func (c *client) IsRootTicket() bool {
 	return c.auth.IsRootTicket()
 }
 
+func (c *client) HTTP() *http.Client {
+	return c.conn.httpClient
+}
+
 // validateResponseCode ensures that a response is valid.
 func validateResponseCode(res *http.Response) error {
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		status := strings.TrimPrefix(res.Status, fmt.Sprintf("%d ", res.StatusCode))
+		msg := strings.TrimPrefix(res.Status, fmt.Sprintf("%d ", res.StatusCode))
 
 		errRes := &ErrorResponseBody{}
 		err := json.NewDecoder(res.Body).Decode(errRes)
@@ -315,11 +330,35 @@ func validateResponseCode(res *http.Response) error {
 				errList = append(errList, fmt.Sprintf("%s: %s", k, strings.TrimRight(v, "\n\r")))
 			}
 
-			status = fmt.Sprintf("%s (%s)", status, strings.Join(errList, " - "))
+			msg = fmt.Sprintf("%s (%s)", msg, strings.Join(errList, " - "))
 		}
 
-		return fmt.Errorf("received an HTTP %d response - Reason: %s", res.StatusCode, status)
+		return &HTTPError{
+			Code:    res.StatusCode,
+			Message: msg,
+		}
 	}
 
 	return nil
+}
+
+// GetMinTLSVersion returns the minimum TLS version constant for the given string. If the string is empty,
+// the default TLS version is returned. For unsupported TLS versions, an error is returned.
+func GetMinTLSVersion(version string) (uint16, error) {
+	validVersions := map[string]uint16{
+		"":    tls.VersionTLS13,
+		"1.3": tls.VersionTLS13,
+		"1.2": tls.VersionTLS12,
+		"1.1": tls.VersionTLS11,
+		"1.0": tls.VersionTLS10,
+	}
+
+	if val, ok := validVersions[strings.TrimSpace(version)]; ok {
+		return val, nil
+	}
+
+	valid := maps.Keys(validVersions)
+	sort.Strings(valid)
+
+	return 0, fmt.Errorf("unsupported minimal TLS version %s, must be one of: %s", version, strings.Join(valid, ", "))
 }

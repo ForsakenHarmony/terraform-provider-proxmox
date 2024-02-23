@@ -7,7 +7,7 @@
 package cluster
 
 import (
-	"github.com/bpg/terraform-provider-proxmox/internal/types"
+	"github.com/bpg/terraform-provider-proxmox/proxmox/types"
 )
 
 // NextIDRequestBody contains the data for a cluster next id request.
@@ -27,7 +27,7 @@ type ResourcesListBody struct {
 
 // ResourcesListRequestBody contains the body params to cluster resource list request.
 type ResourcesListRequestBody struct {
-	Type string `json:"type"  url:"type"`
+	Type string `json:"type" url:"type"`
 }
 
 // ResourcesListResponseData contains the data from a cluster resource list body response.
@@ -37,13 +37,13 @@ type ResourcesListResponseData struct {
 	CgroupMode int     `json:"cgroup-mode,omitempty"`
 	Content    int     `json:"content,omitempty"`
 	CPU        float64 `json:"cpu,omitempty"`
-	Disk       int     `json:"disk,omitempty"`
+	Disk       int64   `json:"disk,omitempty"`
 	HaState    string  `json:"hastate,omitempty"`
 	Level      string  `json:"level,omitempty"`
 	MaxCPU     float64 `json:"maxcpu,omitempty"`
-	MaxDisk    int     `json:"maxdisk,omitempty"`
-	MaxMem     int     `json:"maxmem,omitempty"`
-	Mem        int     `json:"mem,omitempty"`
+	MaxDisk    int64   `json:"maxdisk,omitempty"`
+	MaxMem     int64   `json:"maxmem,omitempty"`
+	Mem        int64   `json:"mem,omitempty"`
 	Name       string  `json:"name,omitempty"`
 	NodeName   string  `json:"node,omitempty"`
 	PluginType string  `json:"plugintype,omitempty"`

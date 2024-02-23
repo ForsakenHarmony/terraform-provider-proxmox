@@ -1,4 +1,5 @@
-name: golangci-lint
+name: Linter
+
 on:
   push:
     tags:
@@ -9,17 +10,32 @@ on:
 permissions:
   contents: read
   pull-requests: read
+
 jobs:
-  golangci:
-    name: lint
+  golangci-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v4
+
+      - name: Filter paths
+        uses: dorny/paths-filter@ebc4d7e9ebcb0b1eb21480bb8f43113e996ac77a # v3.0.1
+        id: filter
         with:
-          go-version-file: 'go.mod'
-      - name: golangci-lint
+          filters: |
+            go:
+              - '**/*.go'
+              - 'tools/go.mod'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        if: steps.filter.outputs.go == 'true'
+        with:
+          go-version-file: "go.mod"
+
+      - name: Lint code
+        if: steps.filter.outputs.go == 'true'
         run: |
           go run -modfile=tools/go.mod github.com/golangci/golangci-lint/cmd/golangci-lint run -v --timeout 5m

@@ -1,8 +1,6 @@
 ---
 layout: page
 title: proxmox_virtual_environment_pool
-permalink: /data-sources/virtual_environment_pool
-nav_order: 13
 parent: Data Sources
 subcategory: Virtual Environment
 ---
@@ -27,8 +25,8 @@ data "proxmox_virtual_environment_pool" "operations_pool" {
 
 - `comment` - The pool comment.
 - `members` - The pool members.
-  - `datastore_id` - The datastore identifier.
-  - `id` - The member identifier.
-  - `node_name` - The node name.
-  - `type` - The member type.
-  - `vm_id` - The virtual machine identifier.
+    - `datastore_id` - The datastore identifier.
+    - `id` - The member identifier.
+    - `node_name` - The node name.
+    - `type` - The member type.
+    - `vm_id` - The virtual machine identifier.

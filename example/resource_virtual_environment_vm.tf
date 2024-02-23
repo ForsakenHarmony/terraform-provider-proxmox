@@ -7,30 +7,51 @@ resource "proxmox_virtual_environment_vm" "example_template" {
     enabled = true
   }
 
+  bios        = "ovmf"
   description = "Managed by Terraform"
 
   cpu {
-    numa = true
+    cores = 2
+    numa  = true
+    limit = 64
+  }
+
+  smbios {
+    manufacturer = "Terraform"
+    product      = "Terraform Provider Proxmox"
+    version      = "0.0.1"
+  }
+
+  startup {
+    order      = "3"
+    up_delay   = "60"
+    down_delay = "60"
   }
 
   efi_disk {
-    datastore_id      = local.datastore_id
-    file_format       = "raw"
-    type              = "4m"
+    datastore_id = local.datastore_id
+    file_format  = "raw"
+    type         = "4m"
+  }
+
+  tpm_state {
+    datastore_id = local.datastore_id
+    version      = "v2.0"
   }
 
   #  disk {
   #    datastore_id = local.datastore_id
-  #    file_id      = proxmox_virtual_environment_file.ubuntu_cloud_image.id
+  #    file_id      = proxmox_virtual_environment_download_file.ubuntu_cloud_image.id
   #    interface    = "virtio0"
   #    iothread     = true
   #  }
 
   disk {
     datastore_id = local.datastore_id
-    file_id      = proxmox_virtual_environment_file.ubuntu_cloud_image.id
+    file_id      = proxmox_virtual_environment_download_file.latest_debian_12_bookworm_qcow2_img.id
     interface    = "scsi0"
     discard      = "on"
+    cache        = "writeback"
     ssd          = true
   }
 
@@ -43,9 +64,10 @@ resource "proxmox_virtual_environment_vm" "example_template" {
 
   initialization {
     datastore_id = local.datastore_id
+    interface    = "scsi4"
 
     dns {
-      server = "1.1.1.1"
+      servers = ["1.1.1.1", "8.8.8.8"]
     }
 
     ip_config {
@@ -62,10 +84,12 @@ resource "proxmox_virtual_environment_vm" "example_template" {
     meta_data_file_id   = proxmox_virtual_environment_file.meta_config.id
   }
 
-  name = "terraform-provider-proxmox-example-template"
+  machine = "q35"
+  name    = "terraform-provider-proxmox-example-template"
 
   network_device {
-    mtu = 1450
+    mtu    = 1450
+    queues = 2
   }
 
   network_device {
@@ -90,6 +114,7 @@ resource "proxmox_virtual_environment_vm" "example_template" {
 resource "proxmox_virtual_environment_vm" "example" {
   name      = "terraform-provider-proxmox-example"
   node_name = data.proxmox_virtual_environment_nodes.example.names[0]
+  migrate   = true // migrate the VM on node change
   pool_id   = proxmox_virtual_environment_pool.example.id
   vm_id     = 2041
   tags      = ["terraform", "ubuntu"]
@@ -97,6 +122,8 @@ resource "proxmox_virtual_environment_vm" "example" {
   clone {
     vm_id = proxmox_virtual_environment_vm.example_template.id
   }
+
+  machine = "q35"
 
   memory {
     dedicated = 768
@@ -116,14 +143,83 @@ resource "proxmox_virtual_environment_vm" "example" {
     ]
   }
 
-  # While overwriting the initialization block when cloning a template is possible, it is not recommended.
-  # This will cause the coned VM to be reinitialized each time on re-apply.
-  #  initialization {
-  #    dns {
-  #      server = "8.8.8.8"
-  #    }
-  #  }
+  smbios {
+    serial = "my-custom-serial"
+  }
 
+  initialization {
+    // if unspecified:
+    //   - autodetected if there is a cloud-init device on the template
+    //   - otherwise defaults to ide2
+    interface = "scsi4"
+
+    dns {
+      servers = ["1.1.1.1"]
+    }
+    ip_config {
+      ipv4 {
+        address = "dhcp"
+      }
+    }
+  }
+
+  #hostpci {
+  #  device = "hostpci0"
+  #  id = "0000:00:1f.0"
+  #  pcie = true
+  #}
+
+  #hostpci {
+  #  device = "hostpci1"
+  #  mapping = "gpu"
+  #  pcie = true
+  #}
+
+  #usb {
+  #  host = "0000:1234"
+  #  mapping = "usbdevice1"
+  #  usb3 = false
+  #}
+
+  #usb {
+  #  host = "0000:5678"
+  #  mapping = "usbdevice2"
+  #  usb3 = false
+  #}
+
+  # attached disks from data_vm
+  dynamic "disk" {
+    for_each = { for idx, val in proxmox_virtual_environment_vm.data_vm.disk : idx => val }
+    iterator = data_disk
+    content {
+      datastore_id      = data_disk.value["datastore_id"]
+      path_in_datastore = data_disk.value["path_in_datastore"]
+      file_format       = data_disk.value["file_format"]
+      size              = data_disk.value["size"]
+      # assign from scsi1 and up
+      interface = "scsi${data_disk.key + 1}"
+    }
+  }
+}
+
+resource "proxmox_virtual_environment_vm" "data_vm" {
+  name      = "terraform-provider-proxmox-data-vm"
+  node_name = data.proxmox_virtual_environment_nodes.example.names[0]
+  started   = false
+  on_boot   = false
+
+  disk {
+    datastore_id = local.datastore_id
+    file_format  = "raw"
+    interface    = "scsi0"
+    size         = 1
+  }
+  disk {
+    datastore_id = local.datastore_id
+    file_format  = "raw"
+    interface    = "scsi1"
+    size         = 4
+  }
 }
 
 output "resource_proxmox_virtual_environment_vm_example_id" {

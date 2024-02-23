@@ -1,8 +1,6 @@
 ---
 layout: page
 title: proxmox_virtual_environment_user
-permalink: /resources/virtual_environment_user
-nav_order: 16
 parent: Resources
 subcategory: Virtual Environment
 ---
@@ -15,12 +13,6 @@ Manages a user.
 
 ```terraform
 resource "proxmox_virtual_environment_user" "operations_automation" {
-  acl {
-    path      = "/vms/1234"
-    propagate = true
-    role_id   = proxmox_virtual_environment_role.operations_monitoring.role_id
-  }
-
   comment  = "Managed by Terraform"
   password = "a-strong-password"
   user_id  = "operations-automation@pve"
@@ -37,10 +29,6 @@ resource "proxmox_virtual_environment_role" "operations_monitoring" {
 
 ## Argument Reference
 
-- `acl` - (Optional) The access control list (multiple blocks supported).
-    - `path` - The path.
-    - `propagate` - Whether to propagate to child paths.
-    - `role_id` - The role identifier.
 - `comment` - (Optional) The user comment.
 - `email` - (Optional) The user's email address.
 - `enabled` - (Optional) Whether the user account is enabled.
@@ -49,7 +37,7 @@ resource "proxmox_virtual_environment_role" "operations_monitoring" {
 - `groups` - (Optional) The user's groups.
 - `keys` - (Optional) The user's keys.
 - `last_name` - (Optional) The user's last name.
-- `password` - (Optional) The user's password (required if the realm is pve).
+- `password` - (Optional) The user's password. Required for PVE or PAM realms.
 - `user_id` - (Required) The user identifier.
 
 ## Attribute Reference
@@ -61,5 +49,5 @@ There are no additional attributes available for this resource.
 Instances can be imported using the `user_id`, e.g.,
 
 ```bash
-$ terraform import proxmox_virtual_environment_user.operations_automation operations-automation@pve
+terraform import proxmox_virtual_environment_user.operations_automation operations-automation@pve
 ```

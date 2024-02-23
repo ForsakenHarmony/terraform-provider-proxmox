@@ -14,6 +14,7 @@ import (
 
 	"github.com/bpg/terraform-provider-proxmox/proxmox/firewall"
 	"github.com/bpg/terraform-provider-proxmox/proxmoxtf"
+	resource "github.com/bpg/terraform-provider-proxmox/proxmoxtf/resource/vm"
 )
 
 const (
@@ -30,16 +31,18 @@ func selectorSchema() map[string]*schema.Schema {
 			Description: "The name of the node.",
 		},
 		mkSelectorVMID: {
-			Type:         schema.TypeInt,
-			Optional:     true,
-			Description:  "The ID of the VM to manage the firewall for.",
-			RequiredWith: []string{mkSelectorNodeName},
+			Type:             schema.TypeInt,
+			Optional:         true,
+			Description:      "The ID of the VM to manage the firewall for.",
+			RequiredWith:     []string{mkSelectorNodeName},
+			ValidateDiagFunc: resource.VMIDValidator(),
 		},
 		mkSelectorContainerID: {
-			Type:         schema.TypeInt,
-			Optional:     true,
-			Description:  "The ID of the container to manage the firewall for.",
-			RequiredWith: []string{mkSelectorNodeName},
+			Type:             schema.TypeInt,
+			Optional:         true,
+			Description:      "The ID of the container to manage the firewall for.",
+			RequiredWith:     []string{mkSelectorNodeName},
+			ValidateDiagFunc: resource.VMIDValidator(),
 		},
 	}
 }

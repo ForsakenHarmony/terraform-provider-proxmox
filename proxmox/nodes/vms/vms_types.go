@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bpg/terraform-provider-proxmox/internal/types"
+	"github.com/bpg/terraform-provider-proxmox/proxmox/types"
 )
 
 // CustomAgent handles QEMU agent parameters.
@@ -118,7 +118,8 @@ type CustomNUMADevices []CustomNUMADevice
 
 // CustomPCIDevice handles QEMU host PCI device mapping parameters.
 type CustomPCIDevice struct {
-	DeviceIDs  []string          `json:"host"              url:"host,semicolon"`
+	DeviceIDs  *[]string         `json:"host,omitempty"    url:"host,omitempty,semicolon"`
+	Mapping    *string           `json:"mapping,omitempty" url:"mapping,omitempty"`
 	MDev       *string           `json:"mdev,omitempty"    url:"mdev,omitempty"`
 	PCIExpress *types.CustomBool `json:"pcie,omitempty"    url:"pcie,omitempty,int"`
 	ROMBAR     *types.CustomBool `json:"rombar,omitempty"  url:"rombar,omitempty,int"`
@@ -140,7 +141,7 @@ type CustomSharedMemory struct {
 
 // CustomSMBIOS handles QEMU SMBIOS parameters.
 type CustomSMBIOS struct {
-	Base64       *types.CustomBool `json:"base64,omitempty"       url:"base64,omitempty"`
+	Base64       *types.CustomBool `json:"base64,omitempty"       url:"base64,omitempty,int"`
 	Family       *string           `json:"family,omitempty"       url:"family,omitempty"`
 	Manufacturer *string           `json:"manufacturer,omitempty" url:"manufacturer,omitempty"`
 	Product      *string           `json:"product,omitempty"      url:"product,omitempty"`
@@ -163,54 +164,17 @@ type CustomStartupOrder struct {
 	Up    *int `json:"up,omitempty"    url:"up,omitempty"`
 }
 
-// CustomStorageDevice handles QEMU SATA device parameters.
-type CustomStorageDevice struct {
-	AIO                     *string           `json:"aio,omitempty"         url:"aio,omitempty"`
-	BackupEnabled           *types.CustomBool `json:"backup,omitempty"      url:"backup,omitempty,int"`
-	BurstableReadSpeedMbps  *int              `json:"mbps_rd_max,omitempty" url:"mbps_rd_max,omitempty"`
-	BurstableWriteSpeedMbps *int              `json:"mbps_wr_max,omitempty" url:"mbps_wr_max,omitempty"`
-	Discard                 *string           `json:"discard,omitempty"     url:"discard,omitempty"`
-	Enabled                 bool              `json:"-"                     url:"-"`
-	FileVolume              string            `json:"file"                  url:"file"`
-	Format                  *string           `json:"format,omitempty"      url:"format,omitempty"`
-	IOThread                *types.CustomBool `json:"iothread,omitempty"    url:"iothread,omitempty,int"`
-	SSD                     *types.CustomBool `json:"ssd,omitempty"         url:"ssd,omitempty,int"`
-	MaxReadSpeedMbps        *int              `json:"mbps_rd,omitempty"     url:"mbps_rd,omitempty"`
-	MaxWriteSpeedMbps       *int              `json:"mbps_wr,omitempty"     url:"mbps_wr,omitempty"`
-	Media                   *string           `json:"media,omitempty"       url:"media,omitempty"`
-	Size                    *types.DiskSize   `json:"size,omitempty"        url:"size,omitempty"`
-	Interface               *string
-	ID                      *string
-	FileID                  *string
-	SizeInt                 *int
-}
-
-// CustomStorageDevices handles QEMU SATA device parameters.
-type CustomStorageDevices map[string]CustomStorageDevice
-
-// AddDevice tries to add a device to the map, if the map is nil it will create a new map and assign it to the pointer.
-func (r *CustomStorageDevices) AddDevice(name string, device CustomStorageDevice) error {
-	if r == nil {
-		return fmt.Errorf("CustomStorageDevices.AddDevice called on nil pointer")
-	}
-
-	if *r == nil {
-		*r = CustomStorageDevices{}
-	}
-
-	if _, found := (*r)[name]; found {
-		return fmt.Errorf("device %#v already exists", name)
-	}
-
-	(*r)[name] = device
-
-	return nil
+// CustomTPMState handles QEMU TPM state parameters.
+type CustomTPMState struct {
+	FileVolume string  `json:"file"              url:"file"`
+	Version    *string `json:"version,omitempty" url:"version,omitempty"`
 }
 
 // CustomUSBDevice handles QEMU USB device parameters.
 type CustomUSBDevice struct {
-	HostDevice string            `json:"host"           url:"host"`
-	USB3       *types.CustomBool `json:"usb3,omitempty" url:"usb3,omitempty,int"`
+	HostDevice *string           `json:"host"              url:"host"`
+	Mapping    *string           `json:"mapping,omitempty" url:"mapping,omitempty"`
+	USB3       *types.CustomBool `json:"usb3,omitempty"    url:"usb3,omitempty,int"`
 }
 
 // CustomUSBDevices handles QEMU USB device parameters.
@@ -316,6 +280,7 @@ type CreateRequestBody struct {
 	Tags                 *string                        `json:"tags,omitempty"               url:"tags,omitempty"`
 	Template             *types.CustomBool              `json:"template,omitempty"           url:"template,omitempty,int"`
 	TimeDriftFixEnabled  *types.CustomBool              `json:"tdf,omitempty"                url:"tdf,omitempty,int"`
+	TPMState             *CustomTPMState                `json:"tpmstate0,omitempty"          url:"tpmstate0,omitempty"`
 	USBDevices           CustomUSBDevices               `json:"usb,omitempty"                url:"usb,omitempty"`
 	VGADevice            *CustomVGADevice               `json:"vga,omitempty"                url:"vga,omitempty"`
 	VirtualCPUCount      *int                           `json:"vcpus,omitempty"              url:"vcpus,omitempty"`
@@ -396,14 +361,14 @@ type GetResponseData struct {
 	CPUArchitecture      *string                         `json:"arch,omitempty"`
 	CPUCores             *int                            `json:"cores,omitempty"`
 	CPUEmulation         *CustomCPUEmulation             `json:"cpu,omitempty"`
-	CPULimit             *int                            `json:"cpulimit,omitempty"`
+	CPULimit             *types.CustomInt                `json:"cpulimit,omitempty"`
 	CPUSockets           *int                            `json:"sockets,omitempty"`
 	CPUUnits             *int                            `json:"cpuunits,omitempty"`
-	DedicatedMemory      *int                            `json:"memory,omitempty"`
+	DedicatedMemory      *types.CustomInt64              `json:"memory,omitempty"`
 	DeletionProtection   *types.CustomBool               `json:"protection,omitempty"`
 	Description          *string                         `json:"description,omitempty"`
 	EFIDisk              *CustomEFIDisk                  `json:"efidisk0,omitempty"`
-	FloatingMemory       *int                            `json:"balloon,omitempty"`
+	FloatingMemory       *types.CustomInt64              `json:"balloon,omitempty"`
 	FloatingMemoryShares *int                            `json:"shares,omitempty"`
 	Freeze               *types.CustomBool               `json:"freeze,omitempty"`
 	HookScript           *string                         `json:"hookscript,omitempty"`
@@ -421,6 +386,30 @@ type GetResponseData struct {
 	IPConfig5            *CustomCloudInitIPConfig        `json:"ipconfig5,omitempty"`
 	IPConfig6            *CustomCloudInitIPConfig        `json:"ipconfig6,omitempty"`
 	IPConfig7            *CustomCloudInitIPConfig        `json:"ipconfig7,omitempty"`
+	IPConfig8            *CustomCloudInitIPConfig        `json:"ipconfig8,omitempty"`
+	IPConfig9            *CustomCloudInitIPConfig        `json:"ipconfig9,omitempty"`
+	IPConfig10           *CustomCloudInitIPConfig        `json:"ipconfig10,omitempty"`
+	IPConfig11           *CustomCloudInitIPConfig        `json:"ipconfig11,omitempty"`
+	IPConfig12           *CustomCloudInitIPConfig        `json:"ipconfig12,omitempty"`
+	IPConfig13           *CustomCloudInitIPConfig        `json:"ipconfig13,omitempty"`
+	IPConfig14           *CustomCloudInitIPConfig        `json:"ipconfig14,omitempty"`
+	IPConfig15           *CustomCloudInitIPConfig        `json:"ipconfig15,omitempty"`
+	IPConfig16           *CustomCloudInitIPConfig        `json:"ipconfig16,omitempty"`
+	IPConfig17           *CustomCloudInitIPConfig        `json:"ipconfig17,omitempty"`
+	IPConfig18           *CustomCloudInitIPConfig        `json:"ipconfig18,omitempty"`
+	IPConfig19           *CustomCloudInitIPConfig        `json:"ipconfig19,omitempty"`
+	IPConfig20           *CustomCloudInitIPConfig        `json:"ipconfig20,omitempty"`
+	IPConfig21           *CustomCloudInitIPConfig        `json:"ipconfig21,omitempty"`
+	IPConfig22           *CustomCloudInitIPConfig        `json:"ipconfig22,omitempty"`
+	IPConfig23           *CustomCloudInitIPConfig        `json:"ipconfig23,omitempty"`
+	IPConfig24           *CustomCloudInitIPConfig        `json:"ipconfig24,omitempty"`
+	IPConfig25           *CustomCloudInitIPConfig        `json:"ipconfig25,omitempty"`
+	IPConfig26           *CustomCloudInitIPConfig        `json:"ipconfig26,omitempty"`
+	IPConfig27           *CustomCloudInitIPConfig        `json:"ipconfig27,omitempty"`
+	IPConfig28           *CustomCloudInitIPConfig        `json:"ipconfig28,omitempty"`
+	IPConfig29           *CustomCloudInitIPConfig        `json:"ipconfig29,omitempty"`
+	IPConfig30           *CustomCloudInitIPConfig        `json:"ipconfig30,omitempty"`
+	IPConfig31           *CustomCloudInitIPConfig        `json:"ipconfig31,omitempty"`
 	KeyboardLayout       *string                         `json:"keyboard,omitempty"`
 	KVMArguments         *string                         `json:"args,omitempty"`
 	KVMEnabled           *types.CustomBool               `json:"kvm,omitempty"`
@@ -438,6 +427,30 @@ type GetResponseData struct {
 	NetworkDevice5       *CustomNetworkDevice            `json:"net5,omitempty"`
 	NetworkDevice6       *CustomNetworkDevice            `json:"net6,omitempty"`
 	NetworkDevice7       *CustomNetworkDevice            `json:"net7,omitempty"`
+	NetworkDevice8       *CustomNetworkDevice            `json:"net8,omitempty"`
+	NetworkDevice9       *CustomNetworkDevice            `json:"net9,omitempty"`
+	NetworkDevice10      *CustomNetworkDevice            `json:"net10,omitempty"`
+	NetworkDevice11      *CustomNetworkDevice            `json:"net11,omitempty"`
+	NetworkDevice12      *CustomNetworkDevice            `json:"net12,omitempty"`
+	NetworkDevice13      *CustomNetworkDevice            `json:"net13,omitempty"`
+	NetworkDevice14      *CustomNetworkDevice            `json:"net14,omitempty"`
+	NetworkDevice15      *CustomNetworkDevice            `json:"net15,omitempty"`
+	NetworkDevice16      *CustomNetworkDevice            `json:"net16,omitempty"`
+	NetworkDevice17      *CustomNetworkDevice            `json:"net17,omitempty"`
+	NetworkDevice18      *CustomNetworkDevice            `json:"net18,omitempty"`
+	NetworkDevice19      *CustomNetworkDevice            `json:"net19,omitempty"`
+	NetworkDevice20      *CustomNetworkDevice            `json:"net20,omitempty"`
+	NetworkDevice21      *CustomNetworkDevice            `json:"net21,omitempty"`
+	NetworkDevice22      *CustomNetworkDevice            `json:"net22,omitempty"`
+	NetworkDevice23      *CustomNetworkDevice            `json:"net23,omitempty"`
+	NetworkDevice24      *CustomNetworkDevice            `json:"net24,omitempty"`
+	NetworkDevice25      *CustomNetworkDevice            `json:"net25,omitempty"`
+	NetworkDevice26      *CustomNetworkDevice            `json:"net26,omitempty"`
+	NetworkDevice27      *CustomNetworkDevice            `json:"net27,omitempty"`
+	NetworkDevice28      *CustomNetworkDevice            `json:"net28,omitempty"`
+	NetworkDevice29      *CustomNetworkDevice            `json:"net29,omitempty"`
+	NetworkDevice30      *CustomNetworkDevice            `json:"net30,omitempty"`
+	NetworkDevice31      *CustomNetworkDevice            `json:"net31,omitempty"`
 	NUMADevices          *CustomNUMADevices              `json:"numa_devices,omitempty"`
 	NUMAEnabled          *types.CustomBool               `json:"numa,omitempty"`
 	OSType               *string                         `json:"ostype,omitempty"`
@@ -484,7 +497,11 @@ type GetResponseData struct {
 	Tags                 *string                         `json:"tags,omitempty"`
 	Template             *types.CustomBool               `json:"template,omitempty"`
 	TimeDriftFixEnabled  *types.CustomBool               `json:"tdf,omitempty"`
-	USBDevices           *CustomUSBDevices               `json:"usb,omitempty"`
+	TPMState             *CustomTPMState                 `json:"tpmstate0,omitempty"`
+	USBDevice0           *CustomUSBDevice                `json:"usb0,omitempty"`
+	USBDevice1           *CustomUSBDevice                `json:"usb1,omitempty"`
+	USBDevice2           *CustomUSBDevice                `json:"usb2,omitempty"`
+	USBDevice3           *CustomUSBDevice                `json:"usb3,omitempty"`
 	VGADevice            *CustomVGADevice                `json:"vga,omitempty"`
 	VirtualCPUCount      *int                            `json:"vcpus,omitempty"`
 	VirtualIODevice0     *CustomStorageDevice            `json:"virtio0,omitempty"`
@@ -518,11 +535,11 @@ type GetStatusResponseData struct {
 	AgentEnabled     *types.CustomBool `json:"agent,omitempty"`
 	CPUCount         *float64          `json:"cpus,omitempty"`
 	Lock             *string           `json:"lock,omitempty"`
-	MemoryAllocation *int              `json:"maxmem,omitempty"`
+	MemoryAllocation *int64            `json:"maxmem,omitempty"`
 	Name             *string           `json:"name,omitempty"`
 	PID              *int              `json:"pid,omitempty"`
 	QMPStatus        *string           `json:"qmpstatus,omitempty"`
-	RootDiskSize     *int              `json:"maxdisk,omitempty"`
+	RootDiskSize     *int64            `json:"maxdisk,omitempty"`
 	SpiceSupport     *types.CustomBool `json:"spice,omitempty"`
 	Status           string            `json:"status,omitempty"`
 	Tags             *string           `json:"tags,omitempty"`
@@ -544,7 +561,7 @@ type ListResponseData struct {
 
 // MigrateRequestBody contains the body for a VM migration request.
 type MigrateRequestBody struct {
-	OnlineMigration *types.CustomBool `json:"online,omitempty"           url:"online,omitempty"`
+	OnlineMigration *types.CustomBool `json:"online,omitempty"           url:"online,omitempty,int"`
 	TargetNode      string            `json:"target"                     url:"target"`
 	TargetStorage   *string           `json:"targetstorage,omitempty"    url:"targetstorage,omitempty"`
 	WithLocalDisks  *types.CustomBool `json:"with-local-disks,omitempty" url:"with-local-disks,omitempty,int"`
@@ -599,6 +616,19 @@ type ShutdownRequestBody struct {
 // ShutdownResponseBody contains the body from a VM shutdown response.
 type ShutdownResponseBody struct {
 	Data *string `json:"data,omitempty"`
+}
+
+// StartRequestBody contains the body for a VM start request.
+type StartRequestBody struct {
+	ForceCPU         *string           `json:"force-cpu,omitempty"         url:"force-cpu,omitempty"`
+	Machine          *string           `json:"machine,omitempty"           url:"machine,omitempty"`
+	MigrateFrom      *string           `json:"migratefrom,omitempty"       url:"migratefrom,omitempty"`
+	MigrationNetwork *string           `json:"migration_network,omitempty" url:"migration_network,omitempty"`
+	MigrationType    *string           `json:"migration_type,omitempty"    url:"migration_type,omitempty"`
+	SkipLock         *types.CustomBool `json:"skipLock,omitempty"          url:"skipLock,omitempty,int"`
+	StateURI         *string           `json:"stateuri,omitempty"          url:"stateuri,omitempty"`
+	TargetStorage    *string           `json:"targetstorage,omitempty"     url:"targetstorage,omitempty"`
+	TimeoutSeconds   *int              `json:"timeout,omitempty"           url:"timeout,omitempty"`
 }
 
 // StartResponseBody contains the body from a VM start response.
@@ -930,8 +960,18 @@ func (r CustomNUMADevices) EncodeValues(key string, v *url.Values) error {
 
 // EncodeValues converts a CustomPCIDevice struct to a URL vlaue.
 func (r CustomPCIDevice) EncodeValues(key string, v *url.Values) error {
-	values := []string{
-		fmt.Sprintf("host=%s", strings.Join(r.DeviceIDs, ";")),
+	values := []string{}
+
+	if r.DeviceIDs == nil && r.Mapping == nil {
+		return fmt.Errorf("either device ID or resource mapping must be set")
+	}
+
+	if r.DeviceIDs != nil {
+		values = append(values, fmt.Sprintf("host=%s", strings.Join(*r.DeviceIDs, ";")))
+	}
+
+	if r.Mapping != nil {
+		values = append(values, fmt.Sprintf("mapping=%s", *r.Mapping))
 	}
 
 	if r.MDev != nil {
@@ -1099,70 +1139,14 @@ func (r CustomStartupOrder) EncodeValues(key string, v *url.Values) error {
 	return nil
 }
 
-// EncodeValues converts a CustomStorageDevice struct to a URL vlaue.
-func (r CustomStorageDevice) EncodeValues(key string, v *url.Values) error {
+// EncodeValues converts a CustomTPMState struct to a URL vlaue.
+func (r CustomTPMState) EncodeValues(key string, v *url.Values) error {
 	values := []string{
 		fmt.Sprintf("file=%s", r.FileVolume),
 	}
 
-	if r.AIO != nil {
-		values = append(values, fmt.Sprintf("aio=%s", *r.AIO))
-	}
-
-	if r.BackupEnabled != nil {
-		if *r.BackupEnabled {
-			values = append(values, "backup=1")
-		} else {
-			values = append(values, "backup=0")
-		}
-	}
-
-	if r.BurstableReadSpeedMbps != nil {
-		values = append(values, fmt.Sprintf("mbps_rd_max=%d", *r.BurstableReadSpeedMbps))
-	}
-
-	if r.BurstableWriteSpeedMbps != nil {
-		values = append(values, fmt.Sprintf("mbps_wr_max=%d", *r.BurstableWriteSpeedMbps))
-	}
-
-	if r.Format != nil {
-		values = append(values, fmt.Sprintf("format=%s", *r.Format))
-	}
-
-	if r.MaxReadSpeedMbps != nil {
-		values = append(values, fmt.Sprintf("mbps_rd=%d", *r.MaxReadSpeedMbps))
-	}
-
-	if r.MaxWriteSpeedMbps != nil {
-		values = append(values, fmt.Sprintf("mbps_wr=%d", *r.MaxWriteSpeedMbps))
-	}
-
-	if r.Media != nil {
-		values = append(values, fmt.Sprintf("media=%s", *r.Media))
-	}
-
-	if r.Size != nil {
-		values = append(values, fmt.Sprintf("size=%s", *r.Size))
-	}
-
-	if r.IOThread != nil {
-		if *r.IOThread {
-			values = append(values, "iothread=1")
-		} else {
-			values = append(values, "iothread=0")
-		}
-	}
-
-	if r.SSD != nil {
-		if *r.SSD {
-			values = append(values, "ssd=1")
-		} else {
-			values = append(values, "ssd=0")
-		}
-	}
-
-	if r.Discard != nil && *r.Discard != "" {
-		values = append(values, fmt.Sprintf("discard=%s", *r.Discard))
+	if r.Version != nil {
+		values = append(values, fmt.Sprintf("version=%s", *r.Version))
 	}
 
 	v.Add(key, strings.Join(values, ","))
@@ -1170,23 +1154,18 @@ func (r CustomStorageDevice) EncodeValues(key string, v *url.Values) error {
 	return nil
 }
 
-// EncodeValues converts a CustomStorageDevices array to multiple URL values.
-func (r CustomStorageDevices) EncodeValues(_ string, v *url.Values) error {
-	for s, d := range r {
-		if d.Enabled {
-			if err := d.EncodeValues(s, v); err != nil {
-				return fmt.Errorf("error encoding storage device %s: %w", s, err)
-			}
-		}
-	}
-
-	return nil
-}
-
 // EncodeValues converts a CustomUSBDevice struct to a URL vlaue.
 func (r CustomUSBDevice) EncodeValues(key string, v *url.Values) error {
+	if r.HostDevice == nil && r.Mapping == nil {
+		return fmt.Errorf("either device ID or resource mapping must be set")
+	}
+
 	values := []string{
-		fmt.Sprintf("host=%s", r.HostDevice),
+		fmt.Sprintf("host=%s", *(r.HostDevice)),
+	}
+
+	if r.Mapping != nil {
+		values = append(values, fmt.Sprintf("mapping=%s", *r.Mapping))
 	}
 
 	if r.USB3 != nil {
@@ -1620,11 +1599,15 @@ func (r *CustomPCIDevice) UnmarshalJSON(b []byte) error {
 	for _, p := range pairs {
 		v := strings.Split(strings.TrimSpace(p), "=")
 		if len(v) == 1 {
-			r.DeviceIDs = strings.Split(v[1], ";")
+			dIDs := strings.Split(v[0], ";")
+			r.DeviceIDs = &dIDs
 		} else if len(v) == 2 {
 			switch v[0] {
 			case "host":
-				r.DeviceIDs = strings.Split(v[1], ";")
+				dIDs := strings.Split(v[1], ";")
+				r.DeviceIDs = &dIDs
+			case "mapping":
+				r.Mapping = &v[1]
 			case "mdev":
 				r.MDev = &v[1]
 			case "pcie":
@@ -1638,6 +1621,63 @@ func (r *CustomPCIDevice) UnmarshalJSON(b []byte) error {
 			case "x-vga":
 				bv := types.CustomBool(v[1] == "1")
 				r.XVGA = &bv
+			}
+		}
+	}
+
+	return nil
+}
+
+// UnmarshalJSON converts a CustomTPMState string to an object.
+func (r *CustomTPMState) UnmarshalJSON(b []byte) error {
+	var s string
+
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("failed to unmarshal CustomTPMState: %w", err)
+	}
+
+	pairs := strings.Split(s, ",")
+
+	for _, p := range pairs {
+		v := strings.Split(strings.TrimSpace(p), "=")
+		if len(v) == 1 {
+			r.FileVolume = v[0]
+		} else if len(v) == 2 {
+			switch v[0] {
+			case "file":
+				r.FileVolume = v[1]
+			case "version":
+				r.Version = &v[1]
+			}
+		}
+	}
+
+	return nil
+}
+
+// UnmarshalJSON converts a CustomUSBDevice string to an object.
+func (r *CustomUSBDevice) UnmarshalJSON(b []byte) error {
+	var s string
+
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("failed to unmarshal CustomUSBDevice: %w", err)
+	}
+
+	pairs := strings.Split(s, ",")
+
+	for _, p := range pairs {
+		v := strings.Split(strings.TrimSpace(p), "=")
+		if len(v) == 1 {
+			r.HostDevice = &v[1]
+		} else if len(v) == 2 {
+			switch v[0] {
+			case "host":
+				r.HostDevice = &v[1]
+			case "mapping":
+				r.Mapping = &v[1]
+			case "usb3":
+				bv := types.CustomBool(v[1] == "1")
+				r.USB3 = &bv
 			}
 		}
 	}
@@ -1687,7 +1727,7 @@ func (r *CustomSMBIOS) UnmarshalJSON(b []byte) error {
 	pairs := strings.Split(s, ",")
 
 	for _, p := range pairs {
-		v := strings.Split(strings.TrimSpace(p), "=")
+		v := strings.SplitN(strings.TrimSpace(p), "=", 2)
 
 		if len(v) == 2 {
 			switch v[0] {
@@ -1715,8 +1755,51 @@ func (r *CustomSMBIOS) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// UnmarshalJSON converts a CustomStartupOrder string to an object.
+func (r *CustomStartupOrder) UnmarshalJSON(b []byte) error {
+	var s string
+
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("failed to unmarshal CustomStartupOrder: %w", err)
+	}
+
+	pairs := strings.Split(s, ",")
+
+	for _, p := range pairs {
+		v := strings.Split(strings.TrimSpace(p), "=")
+
+		if len(v) == 2 {
+			switch v[0] {
+			case "order":
+				order, err := strconv.Atoi(v[1])
+				if err != nil {
+					return fmt.Errorf("failed to parse int: %w", err)
+				}
+
+				r.Order = &order
+			case "up":
+				up, err := strconv.Atoi(v[1])
+				if err != nil {
+					return fmt.Errorf("failed to parse int: %w", err)
+				}
+
+				r.Up = &up
+			case "down":
+				down, err := strconv.Atoi(v[1])
+				if err != nil {
+					return fmt.Errorf("failed to parse int: %w", err)
+				}
+
+				r.Down = &down
+			}
+		}
+	}
+
+	return nil
+}
+
 // UnmarshalJSON converts a CustomStorageDevice string to an object.
-func (r *CustomStorageDevice) UnmarshalJSON(b []byte) error {
+func (d *CustomStorageDevice) UnmarshalJSON(b []byte) error {
 	var s string
 
 	if err := json.Unmarshal(b, &s); err != nil {
@@ -1730,73 +1813,85 @@ func (r *CustomStorageDevice) UnmarshalJSON(b []byte) error {
 
 		//nolint:nestif
 		if len(v) == 1 {
-			r.FileVolume = v[0]
+			d.FileVolume = v[0]
 
 			ext := filepath.Ext(v[0])
 			if ext != "" {
 				format := string([]byte(ext)[1:])
-				r.Format = &format
+				d.Format = &format
 			}
 		} else if len(v) == 2 {
 			switch v[0] {
 			case "aio":
-				r.AIO = &v[1]
+				d.AIO = &v[1]
+
 			case "backup":
 				bv := types.CustomBool(v[1] == "1")
-				r.BackupEnabled = &bv
+				d.BackupEnabled = &bv
+
 			case "file":
-				r.FileVolume = v[1]
+				d.FileVolume = v[1]
+
 			case "mbps_rd":
 				iv, err := strconv.Atoi(v[1])
 				if err != nil {
 					return fmt.Errorf("failed to convert mbps_rd to int: %w", err)
 				}
 
-				r.MaxReadSpeedMbps = &iv
+				d.MaxReadSpeedMbps = &iv
 			case "mbps_rd_max":
 				iv, err := strconv.Atoi(v[1])
 				if err != nil {
 					return fmt.Errorf("failed to convert mbps_rd_max to int: %w", err)
 				}
 
-				r.BurstableReadSpeedMbps = &iv
+				d.BurstableReadSpeedMbps = &iv
 			case "mbps_wr":
 				iv, err := strconv.Atoi(v[1])
 				if err != nil {
 					return fmt.Errorf("failed to convert mbps_wr to int: %w", err)
 				}
 
-				r.MaxWriteSpeedMbps = &iv
+				d.MaxWriteSpeedMbps = &iv
 			case "mbps_wr_max":
 				iv, err := strconv.Atoi(v[1])
 				if err != nil {
 					return fmt.Errorf("failed to convert mbps_wr_max to int: %w", err)
 				}
 
-				r.BurstableWriteSpeedMbps = &iv
+				d.BurstableWriteSpeedMbps = &iv
 			case "media":
-				r.Media = &v[1]
+				d.Media = &v[1]
+
 			case "size":
-				r.Size = new(types.DiskSize)
-				err := r.Size.UnmarshalJSON([]byte(v[1]))
+				d.Size = new(types.DiskSize)
+
+				err := d.Size.UnmarshalJSON([]byte(v[1]))
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal disk size: %w", err)
 				}
+
 			case "format":
-				r.Format = &v[1]
+				d.Format = &v[1]
+
 			case "iothread":
 				bv := types.CustomBool(v[1] == "1")
-				r.IOThread = &bv
+				d.IOThread = &bv
+
 			case "ssd":
 				bv := types.CustomBool(v[1] == "1")
-				r.SSD = &bv
+				d.SSD = &bv
+
 			case "discard":
-				r.Discard = &v[1]
+				d.Discard = &v[1]
+
+			case "cache":
+				d.Cache = &v[1]
 			}
 		}
 	}
 
-	r.Enabled = true
+	d.Enabled = true
 
 	return nil
 }

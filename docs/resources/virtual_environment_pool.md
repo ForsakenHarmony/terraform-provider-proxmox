@@ -1,8 +1,6 @@
 ---
 layout: page
 title: proxmox_virtual_environment_pool
-permalink: /resources/virtual_environment_pool
-nav_order: 14
 parent: Resources
 subcategory: Virtual Environment
 ---
@@ -39,5 +37,5 @@ resource "proxmox_virtual_environment_pool" "operations_pool" {
 Instances can be imported using the `pool_id`, e.g.,
 
 ```bash
-$ terraform import proxmox_virtual_environment_pool.operations_pool operations-pool
+terraform import proxmox_virtual_environment_pool.operations_pool operations-pool
 ```

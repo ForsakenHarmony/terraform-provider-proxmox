@@ -1,8 +1,6 @@
 ---
 layout: page
 title: proxmox_virtual_environment_hosts
-permalink: /resources/virtual_environment_hosts
-nav_order: 12
 parent: Resources
 subcategory: Virtual Environment
 ---
@@ -40,7 +38,7 @@ resource "proxmox_virtual_environment_hosts" "first_node_host_entries" {
 - `addresses` - The IP addresses.
 - `digest` - The SHA1 digest.
 - `entries` - The host entries (conversion of `addresses` and `hostnames` into
-  objects).
+    objects).
 - `hostnames` - The hostnames associated with each of the IP addresses.
 
 ## Important Notes
@@ -52,5 +50,5 @@ Be careful not to use this resource multiple times for the same node.
 Instances can be imported using the `node_name`, e.g.,
 
 ```bash
-$ terraform import proxmox_virtual_environment_hosts.first_node_host_entries first-node
+terraform import proxmox_virtual_environment_hosts.first_node_host_entries first-node
 ```

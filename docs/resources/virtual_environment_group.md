@@ -1,8 +1,6 @@
 ---
 layout: page
 title: proxmox_virtual_environment_group
-permalink: /resources/virtual_environment_group
-nav_order: 11
 parent: Resources
 subcategory: Virtual Environment
 ---
@@ -38,5 +36,5 @@ resource "proxmox_virtual_environment_group" "operations_team" {
 Instances can be imported using the `group_id`, e.g.,
 
 ```bash
-$ terraform import proxmox_virtual_environment_group.operations_team operations-team
+terraform import proxmox_virtual_environment_group.operations_team operations-team
 ```

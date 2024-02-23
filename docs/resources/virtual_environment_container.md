@@ -1,8 +1,6 @@
 ---
 layout: page
 title: proxmox_virtual_environment_container
-permalink: /resources/virtual_environment_container
-nav_order: 4
 parent: Resources
 subcategory: Virtual Environment
 ---
@@ -42,19 +40,35 @@ resource "proxmox_virtual_environment_container" "ubuntu_container" {
   }
 
   operating_system {
-    template_file_id = proxmox_virtual_environment_file.ubuntu_container_template.id
+    template_file_id = proxmox_virtual_environment_file.latest_ubuntu_22_jammy_lxc_img.id
     type             = "ubuntu"
+  }
+
+  mount_point {
+    # bind mount, *requires* root@pam authentication
+    volume = "/mnt/bindmounts/shared"
+    path   = "/mnt/shared"
+  }
+
+  mount_point {
+    # volume mount, a new volume will be created by PVE
+    volume = "local-lvm"
+    size   = "10G"
+    path   = "/mnt/volume"
+  }
+
+  startup {
+    order      = "3"
+    up_delay   = "60"
+    down_delay = "60"
   }
 }
 
-resource "proxmox_virtual_environment_file" "ubuntu_container_template" {
+resource "proxmox_virtual_environment_download_file" "latest_ubuntu_22_jammy_lxc_img" {
   content_type = "vztmpl"
   datastore_id = "local"
   node_name    = "first-node"
-
-  source_file {
-    path = "http://download.proxmox.com/images/system/ubuntu-20.04-standard_20.04-1_amd64.tar.gz"
-  }
+  url          = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.tar.gz"
 }
 
 resource "random_password" "ubuntu_container_password" {
@@ -88,11 +102,11 @@ output "ubuntu_container_public_key" {
 - `clone` - (Optional) The cloning configuration.
     - `datastore_id` - (Optional) The identifier for the target datastore.
     - `node_name` - (Optional) The name of the source node (leave blank, if
-      equal to the `node_name` argument).
+        equal to the `node_name` argument).
     - `vm_id` - (Required) The identifier for the source container.
 - `console` - (Optional) The console configuration.
     - `enabled` - (Optional) Whether to enable the console device (defaults
-      to `true`).
+        to `true`).
     - `mode` - (Optional) The console mode (defaults to `tty`).
         - `console` - Console.
         - `shell` - Shell.
@@ -109,55 +123,64 @@ output "ubuntu_container_public_key" {
 - `description` - (Optional) The description.
 - `disk` - (Optional) The disk configuration.
     - `datastore_id` - (Optional) The identifier for the datastore to create the
-      disk in (defaults to `local`).
-      -`size` - (Optional) The size of the root filesystem in gigabytes (
-      defaults to `4`). Requires `datastore_id` to be set.
+        disk in (defaults to `local`).
+    - `size` - (Optional) The size of the root filesystem in gigabytes (defaults
+        to `4`). Requires `datastore_id` to be set.
 - `initialization` - (Optional) The initialization configuration.
     - `dns` - (Optional) The DNS configuration.
         - `domain` - (Optional) The DNS search domain.
-        - `server` - (Optional) The DNS server.
+        - `server` - (Optional) The DNS server. The `server` attribute is
+            deprecated and will be removed in a future release. Please use
+            the `servers` attribute instead.
+        - `servers` - (Optional) The list of DNS servers.
     - `hostname` - (Optional) The hostname.
     - `ip_config` - (Optional) The IP configuration (one block per network
-      device).
+        device).
         - `ipv4` - (Optional) The IPv4 configuration.
             - `address` - (Optional) The IPv4 address (use `dhcp` for
-              autodiscovery).
+                autodiscovery).
             - `gateway` - (Optional) The IPv4 gateway (must be omitted
-              when `dhcp` is used as the address).
+                when `dhcp` is used as the address).
         - `ipv6` - (Optional) The IPv4 configuration.
             - `address` - (Optional) The IPv6 address (use `dhcp` for
-              autodiscovery).
+                autodiscovery).
             - `gateway` - (Optional) The IPv6 gateway (must be omitted
-              when `dhcp` is used as the address).
+                when `dhcp` is used as the address).
     - `user_account` - (Optional) The user account configuration.
         - `keys` - (Optional) The SSH keys for the root account.
         - `password` - (Optional) The password for the root account.
 - `memory` - (Optional) The memory configuration.
     - `dedicated` - (Optional) The dedicated memory in megabytes (defaults
-      to `512`).
+        to `512`).
     - `swap` - (Optional) The swap size in megabytes (defaults to `0`).
 - `mount_point`
-    - `acl` (Boolean) Explicitly enable or disable ACL support
-    - `backup` (Boolean) Whether to include the mount point in backups (only used for volume mount points)
-    - `mount_options` (List of String) Extra mount options.
-    - `path` (Required) Path to the mount point as seen from inside the container
-    - `quota` (Boolean) Enable user quotas inside the container (not supported with zfs subvolumes)
-    - `read_only` (Boolean) Read-only mount point
-    - `replicate` (Boolean) Will include this volume to a storage replica job
-    - `shared` (Boolean) Mark this non-volume mount point as available on all nodes
-    - `size` (String) Volume size (read only value)
-    - `volume` (Required) Volume, device or directory to mount into the container
+    - `acl` (Optional) Explicitly enable or disable ACL support.
+    - `backup` (Optional) Whether to include the mount point in backups (only
+        used for volume mount points).
+    - `mount_options` (Optional) List of extra mount options.
+    - `path` (Required) Path to the mount point as seen from inside the
+        container.
+    - `quota` (Optional) Enable user quotas inside the container (not supported
+        with ZFS subvolumes).
+    - `read_only` (Optional) Read-only mount point.
+    - `replicate` (Optional) Will include this volume to a storage replica job.
+    - `shared` (Optional) Mark this non-volume mount point as available on all
+        nodes.
+    - `size` (Optional) Volume size (only for volume mount points).
+        Can be specified with a unit suffix (e.g. `10G`).
+    - `volume` (Required) Volume, device or directory to mount into the
+        container.
 - `network_interface` - (Optional) A network interface (multiple blocks
-  supported).
+    supported).
     - `bridge` - (Optional) The name of the network bridge (defaults
-      to `vmbr0`).
+        to `vmbr0`).
     - `enabled` - (Optional) Whether to enable the network device (defaults
-      to `true`).
+        to `true`).
     - `firewall` - (Optional) Whether this interface's firewall rules should be
         used (defaults to `false`).
     - `mac_address` - (Optional) The MAC address.
     - `mtu` - (Optional) Maximum transfer unit of the interface. Cannot be
-      larger than the bridge's MTU.
+        larger than the bridge's MTU.
     - `name` - (Required) The network interface name.
     - `rate_limit` - (Optional) The rate limit in megabytes per second.
     - `vlan_id` - (Optional) The VLAN identifier.
@@ -176,7 +199,16 @@ output "ubuntu_container_public_key" {
         - `unmanaged` - Unmanaged.
 - `pool_id` - (Optional) The identifier for a pool to assign the container to.
 - `started` - (Optional) Whether to start the container (defaults to `true`).
-- `tags` - (Optional) A list of tags of the container. This is only meta
+- `startup` - (Optional) Defines startup and shutdown behavior of the container.
+    - `order` - (Required) A non-negative number defining the general startup
+        order.
+        - `up` - (Optional) A non-negative number defining the delay in seconds
+            before the next container is started.
+        - `down` - (Optional) A non-negative number defining the delay in
+            seconds before the next container is shut down.
+- `start_on_boot` - (Optional) Automatically start container when the host
+  system boots (defaults to `true`).
+- `tags` - (Optional) A list of tags the container tags. This is only meta
   information (defaults to `[]`). Note: Proxmox always sorts the container tags.
   If the list in template is not sorted, then Proxmox will always report a
   difference on the resource. You may use the `ignore_changes` lifecycle
@@ -185,9 +217,14 @@ output "ubuntu_container_public_key" {
 - `unprivileged` - (Optional) Whether the container runs as unprivileged on
   the host (defaults to `false`).
 - `vm_id` - (Optional) The container identifier
-- `features` - (Optional) The container features
+- `features` - (Optional) The container feature flags. Changing flags (except nesting) is only allowed for `root@pam` authenticated user.
     - `nesting` - (Optional) Whether the container is nested (defaults
-      to `false`)
+        to `false`)
+    - `fuse` - (Optional) Whether the container supports FUSE mounts (defaults
+        to `false`)
+    - `keyctl` - (Optional) Whether the container supports `keyctl()` system
+      call (defaults to `false`)
+    - `mount` - (Optional) List of allowed mount types (`cifs` or `nfs`)
 
 ## Attribute Reference
 
@@ -198,5 +235,5 @@ There are no additional attributes available for this resource.
 Instances can be imported using the `node_name` and the `vm_id`, e.g.,
 
 ```bash
-$ terraform import proxmox_virtual_environment_container.ubuntu_container first-node/1234
+terraform import proxmox_virtual_environment_container.ubuntu_container first-node/1234
 ```

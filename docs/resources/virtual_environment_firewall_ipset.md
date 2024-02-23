@@ -1,8 +1,6 @@
 ---
 layout: page
 title: proxmox_virtual_environment_firewall_ipset
-permalink: /resources/virtual_environment_firewall_ipset
-nav_order: 8
 parent: Resources
 subcategory: Virtual Environment
 ---
@@ -53,7 +51,7 @@ resource "proxmox_virtual_environment_firewall_ipset" "ipset" {
     - `name` - Network/IP specification in CIDR format.
     - `comment` - (Optional) Arbitrary string annotation.
     - `nomatch` - (Optional) Entries marked as `nomatch` are skipped as if those
-      were not added to the set.
+        were not added to the set.
 
 ## Attribute Reference
 

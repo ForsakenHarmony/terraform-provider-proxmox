@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bpg/terraform-provider-proxmox/internal/types"
+	"github.com/bpg/terraform-provider-proxmox/proxmox/types"
 )
 
 // OptionsPutRequestBody is the request body for the PUT /cluster/firewall/options API call.
@@ -98,6 +98,7 @@ func (r *CustomLogRateLimit) UnmarshalJSON(b []byte) error {
 				if err != nil {
 					return fmt.Errorf("error converting burst to int: %w", err)
 				}
+
 				r.Burst = &iv
 			case "rate":
 				r.Rate = &v[1]

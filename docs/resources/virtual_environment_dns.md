@@ -1,8 +1,6 @@
 ---
 layout: page
 title: proxmox_virtual_environment_dns
-permalink: /resources/virtual_environment_dns
-nav_order: 5
 parent: Resources
 subcategory: Virtual Environment
 ---
@@ -48,5 +46,5 @@ Be careful not to use this resource multiple times for the same node.
 Instances can be imported using the `node_name`, e.g.,
 
 ```bash
-$ terraform import proxmox_virtual_environment_dns.first_node first-node
+terraform import proxmox_virtual_environment_dns.first_node first-node
 ```

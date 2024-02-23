@@ -1,84 +1,71 @@
 name: Tests
+
 on:
-  pull_request:
-    paths-ignore:
-      - 'README.md'
+  pull_request: {}
   push:
     branches:
       - main
       - "release/**"
-    paths-ignore:
-      - 'README.md'
 jobs:
-  # ensure the code builds...
   build:
-    name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          go-version-file: 'go.mod'
+          fetch-depth: 1
+
+      - name: Filter paths
+        uses: dorny/paths-filter@ebc4d7e9ebcb0b1eb21480bb8f43113e996ac77a # v3.0.1
+        id: filter
+        with:
+          filters: |
+            go:
+              - '**/*.go'
+
+      - name: Setup Go
+        if: steps.filter.outputs.go == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
 
       - name: Get dependencies
+        if: steps.filter.outputs.go == 'true'
         run: go mod download
 
       - name: Build
+        if: steps.filter.outputs.go == 'true'
         run: go vet . && go build -v .
 
-# Very noisy, temporarily disabled
-#      - name: Run coverage
-#        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
-#
-#      - name: Upload coverage to Codecov
-#        uses: codecov/codecov-action@v3
-
-  # run acceptance tests in a matrix with Terraform core versions
   test:
-    name: Matrix Test
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        # list whatever Terraform versions here you would like to support
-        terraform:
-          - '1.2.9'
-          - '1.3.8'
-          - '1.4.2'
     steps:
-
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          go-version-file: 'go.mod'
+          fetch-depth: 1
+
+      - name: Filter paths
+        uses: dorny/paths-filter@ebc4d7e9ebcb0b1eb21480bb8f43113e996ac77a # v3.0.1
+        id: filter
+        with:
+          filters: |
+            go:
+              - '**/*.go'
+
+      - name: Setup Go
+        if: steps.filter.outputs.go == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
 
       - name: Get dependencies
+        if: steps.filter.outputs.go == 'true'
         run: go mod download
 
-#      - name: TF acceptance tests
-#        timeout-minutes: 10
-#        env:
-#          TF_ACC: "1"
-#          TF_ACC_TERRAFORM_VERSION: ${{ matrix.terraform }}
-#        run: go test -v -cover ./...
-
       - name: Unit tests
+        if: steps.filter.outputs.go == 'true'
         timeout-minutes: 10
         run: go test -v -cover ./...
-
-  all-tests-passed:
-    name: All Tests Passed
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "PASS"

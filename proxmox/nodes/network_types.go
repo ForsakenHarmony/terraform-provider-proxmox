@@ -7,7 +7,7 @@
 package nodes
 
 import (
-	"github.com/bpg/terraform-provider-proxmox/internal/types"
+	"github.com/bpg/terraform-provider-proxmox/proxmox/types"
 )
 
 // NetworkInterfaceListResponseBody contains the body from a node network interface list response.
@@ -17,11 +17,14 @@ type NetworkInterfaceListResponseBody struct {
 
 // NetworkInterfaceListResponseData contains the data from a node network interface list response.
 type NetworkInterfaceListResponseData struct {
+	// There seems to be inconsistency in the APIs between certain versions of Proxmox.
+	// See https://github.com/bpg/terraform-provider-proxmox/issues/410
+	// BridgeFD        *int              `json:"bridge_fd,omitempty"`
+
 	Active          *types.CustomBool `json:"active,omitempty"`
 	Address         *string           `json:"address,omitempty"`
 	Address6        *string           `json:"address6,omitempty"`
 	Autostart       *types.CustomBool `json:"autostart,omitempty"`
-	BridgeFD        *types.CustomInt  `json:"bridge_fd,omitempty"`
 	BridgePorts     *string           `json:"bridge_ports,omitempty"`
 	BridgeSTP       *string           `json:"bridge_stp,omitempty"`
 	BridgeVIDs      *string           `json:"bridge_vids,omitempty"`
@@ -73,7 +76,7 @@ type NetworkInterfaceCreateUpdateRequestBody struct {
 	OVSPorts           *string           `json:"ovs_ports,omitempty"             url:"ovs_ports,omitempty"`
 	OVSTag             *string           `json:"ovs_tag,omitempty"               url:"ovs_tag,omitempty"`
 	Slaves             *string           `json:"slaves,omitempty"                url:"slaves,omitempty"`
-	VLANID             *int64            `json:"vlan_id,omitempty"               url:"vlan_id,omitempty"`
+	VLANID             *int64            `json:"vlan-id,omitempty"               url:"vlan-id,omitempty"`
 	VLANRawDevice      *string           `json:"vlan-raw-device,omitempty"       url:"vlan-raw-device,omitempty"`
 }
 

@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bpg/terraform-provider-proxmox/internal/types"
+	"github.com/bpg/terraform-provider-proxmox/proxmox/types"
 )
 
 // CloneRequestBody contains the data for an container clone request.
@@ -84,7 +84,7 @@ type CustomFeatures struct {
 type CustomMountPoint struct {
 	ACL          *types.CustomBool `json:"acl,omitempty"          url:"acl,omitempty,int"`
 	Backup       *types.CustomBool `json:"backup,omitempty"       url:"backup,omitempty,int"`
-	DiskSize     *string           `json:"size,omitempty"         url:"size,omitempty"`
+	DiskSize     *string           `json:"size,omitempty"         url:"size,omitempty"` // read-only
 	Enabled      bool              `json:"-"                      url:"-"`
 	MountOptions *[]string         `json:"mountoptions,omitempty" url:"mountoptions,omitempty"`
 	MountPoint   string            `json:"mp"                     url:"mp"`
@@ -141,6 +141,11 @@ type CustomStartupBehavior struct {
 	Up    *int `json:"up,omitempty"    url:"up,omitempty"`
 }
 
+// CreateResponseBody contains the body from a container create response.
+type CreateResponseBody struct {
+	Data *string `json:"data,omitempty"`
+}
+
 // GetResponseBody contains the body from a user get response.
 type GetResponseBody struct {
 	Data *GetResponseData `json:"data,omitempty"`
@@ -152,7 +157,7 @@ type GetResponseData struct {
 	ConsoleMode       *string                 `json:"cmode,omitempty"`
 	CPUArchitecture   *string                 `json:"arch,omitempty"`
 	CPUCores          *int                    `json:"cores,omitempty"`
-	CPULimit          *int                    `json:"cpulimit,omitempty"`
+	CPULimit          *types.CustomInt        `json:"cpulimit,omitempty"`
 	CPUUnits          *int                    `json:"cpuunits,omitempty"`
 	DedicatedMemory   *int                    `json:"memory,omitempty"`
 	Description       *string                 `json:"description,omitempty"`
@@ -199,16 +204,21 @@ type GetStatusResponseBody struct {
 
 // GetStatusResponseData contains the data from a container get status response.
 type GetStatusResponseData struct {
-	CPUCount         *float64     `json:"cpus,omitempty"`
-	Lock             *string      `json:"lock,omitempty"`
-	MemoryAllocation *int         `json:"maxmem,omitempty"`
-	Name             *string      `json:"name,omitempty"`
-	RootDiskSize     *interface{} `json:"maxdisk,omitempty"`
-	Status           string       `json:"status,omitempty"`
-	SwapAllocation   *int         `json:"maxswap,omitempty"`
-	Tags             *string      `json:"tags,omitempty"`
-	Uptime           *int         `json:"uptime,omitempty"`
-	VMID             *int         `json:"vmid,omitempty"`
+	CPUCount         *float64         `json:"cpus,omitempty"`
+	Lock             *string          `json:"lock,omitempty"`
+	MemoryAllocation *int             `json:"maxmem,omitempty"`
+	Name             *string          `json:"name,omitempty"`
+	RootDiskSize     *interface{}     `json:"maxdisk,omitempty"`
+	Status           string           `json:"status,omitempty"`
+	SwapAllocation   *int             `json:"maxswap,omitempty"`
+	Tags             *string          `json:"tags,omitempty"`
+	Uptime           *int             `json:"uptime,omitempty"`
+	VMID             *types.CustomInt `json:"vmid,omitempty"`
+}
+
+// StartResponseBody contains the body from a container start response.
+type StartResponseBody struct {
+	Data *string `json:"data,omitempty"`
 }
 
 // RebootRequestBody contains the body for a container reboot request.
@@ -315,7 +325,7 @@ func (r *CustomMountPoint) EncodeValues(key string, v *url.Values) error {
 	}
 
 	if r.Replicate != nil {
-		if *r.ReadOnly {
+		if *r.Replicate {
 			values = append(values, "replicate=1")
 		} else {
 			values = append(values, "replicate=0")
@@ -454,7 +464,7 @@ func (r *CustomRootFS) EncodeValues(key string, v *url.Values) error {
 	}
 
 	if r.Size != nil {
-		values = append(values, fmt.Sprintf("size=%s", *r.Size))
+		values = append(values, fmt.Sprintf("size=%d", *r.Size))
 	}
 
 	if r.MountOptions != nil {
@@ -691,6 +701,7 @@ func (r *CustomNetworkInterface) UnmarshalJSON(b []byte) error {
 				r.Tag = &iv
 			case "trunks":
 				var err error
+
 				if v[1] != "" {
 					trunks := strings.Split(v[1], ";")
 					a := make([]int, len(trunks))
@@ -759,6 +770,7 @@ func (r *CustomRootFS) UnmarshalJSON(b []byte) error {
 				r.Shared = &bv
 			case "size":
 				r.Size = new(types.DiskSize)
+
 				err := r.Size.UnmarshalJSON([]byte(v[1]))
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal disk size: %w", err)
