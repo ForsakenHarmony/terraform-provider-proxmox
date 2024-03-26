@@ -107,7 +107,7 @@ output "ubuntu_container_public_key" {
 - `console` - (Optional) The console configuration.
     - `enabled` - (Optional) Whether to enable the console device (defaults
         to `true`).
-    - `mode` - (Optional) The console mode (defaults to `tty`).
+    - `type` - (Optional) The console mode (defaults to `tty`).
         - `console` - Console.
         - `shell` - Shell.
         - `tty` - TTY.
@@ -202,10 +202,10 @@ output "ubuntu_container_public_key" {
 - `startup` - (Optional) Defines startup and shutdown behavior of the container.
     - `order` - (Required) A non-negative number defining the general startup
         order.
-        - `up` - (Optional) A non-negative number defining the delay in seconds
-            before the next container is started.
-        - `down` - (Optional) A non-negative number defining the delay in
-            seconds before the next container is shut down.
+    - `up_delay` - (Optional) A non-negative number defining the delay in
+        seconds before the next container is started.
+    - `down_delay` - (Optional) A non-negative number defining the delay in
+        seconds before the next container is shut down.
 - `start_on_boot` - (Optional) Automatically start container when the host
   system boots (defaults to `true`).
 - `tags` - (Optional) A list of tags the container tags. This is only meta
@@ -214,6 +214,8 @@ output "ubuntu_container_public_key" {
   difference on the resource. You may use the `ignore_changes` lifecycle
   meta-argument to ignore changes to this attribute.
 - `template` - (Optional) Whether to create a template (defaults to `false`).
+- `timeout_create` - (Optional) Timeout for creating a container in seconds (defaults to 1800).
+- `timeout_start` - (Optional) Timeout for starting a container in seconds (defaults to 300).
 - `unprivileged` - (Optional) Whether the container runs as unprivileged on
   the host (defaults to `false`).
 - `vm_id` - (Optional) The container identifier
@@ -225,6 +227,7 @@ output "ubuntu_container_public_key" {
     - `keyctl` - (Optional) Whether the container supports `keyctl()` system
       call (defaults to `false`)
     - `mount` - (Optional) List of allowed mount types (`cifs` or `nfs`)
+- `hook_script_file_id` - (Optional) The identifier for a file containing a hook script (needs to be executable).
 
 ## Attribute Reference
 

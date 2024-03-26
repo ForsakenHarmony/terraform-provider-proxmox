@@ -100,6 +100,7 @@ func User() *schema.Resource {
 				Type:        schema.TypeString,
 				Description: "The user's password (required if the realm is pve)",
 				Optional:    true,
+				Sensitive:   true,
 			},
 			mkResourceVirtualEnvironmentUserUserID: {
 				Type:        schema.TypeString,
@@ -136,7 +137,7 @@ func userCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 		return diag.FromErr(err)
 	}
 
-	expirationDateCustom := types.CustomTimestamp(expirationDate)
+	expirationDateCustom := expirationDate.Unix()
 	firstName := d.Get(mkResourceVirtualEnvironmentUserFirstName).(string)
 	groups := d.Get(mkResourceVirtualEnvironmentUserGroups).(*schema.Set).List()
 	groupsCustom := make([]string, len(groups))
@@ -224,7 +225,7 @@ func userRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.D
 	if user.ExpirationDate != nil {
 		err = d.Set(
 			mkResourceVirtualEnvironmentUserExpirationDate,
-			time.Time(*user.ExpirationDate).Format(time.RFC3339),
+			time.Unix(*user.ExpirationDate, 0).UTC().Format(time.RFC3339),
 		)
 	} else {
 		err = d.Set(mkResourceVirtualEnvironmentUserExpirationDate, time.Unix(0, 0).UTC().Format(time.RFC3339))
@@ -284,7 +285,7 @@ func userUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag
 		return diag.FromErr(err)
 	}
 
-	expirationDateCustom := types.CustomTimestamp(expirationDate)
+	expirationDateCustom := expirationDate.Unix()
 	firstName := d.Get(mkResourceVirtualEnvironmentUserFirstName).(string)
 	groups := d.Get(mkResourceVirtualEnvironmentUserGroups).(*schema.Set).List()
 	groupsCustom := make([]string, len(groups))

@@ -231,8 +231,18 @@ output "ubuntu_vm_public_key" {
         - `custom-<model>` - Custom CPU model. All `custom-<model>` values
             should be defined in `/etc/pve/virtual-guest/cpu-models.conf` file.
     - `units` - (Optional) The CPU units (defaults to `1024`).
+    - `affinity` - (Optional) The CPU cores that are used to run the VM’s vCPU. The
+        value is a list of CPU IDs, separated by commas. The CPU IDs are zero-based.
+        For example, `0,1,2,3` (which also can be shortened to `0-3`) means that the VM’s vCPUs are run on the first four
+        CPU cores. Setting `affinity` is only allowed for `root@pam` authenticated user.
 - `description` - (Optional) The description.
 - `disk` - (Optional) A disk (multiple blocks supported).
+    - `aio` - (Optional) The disk AIO mode (defaults to `io_uring`).
+        - `io_uring` - Use io_uring.
+        - `native` - Use native AIO. Should be used with to unbuffered, O_DIRECT, raw block storage only,
+            with the disk `cache` must be set to `none`. Raw block storage types include iSCSI, CEPH/RBD, and NVMe.
+        - `threads` - Use thread-based AIO.
+    - `backup` - (Optional) Whether the drive should be included when making backups (defaults to `true`).
     - `cache` - (Optional) The cache type (defaults to `none`).
         - `none` - No cache.
         - `directsync` - Write to the host cache and wait for completion.
@@ -263,8 +273,13 @@ output "ubuntu_vm_public_key" {
         the second, etc.
     - `iothread` - (Optional) Whether to use iothreads for this disk (defaults
         to `false`).
+    - `replicate` - (Optional) Whether the drive should be considered for replication jobs (defaults to `true`).
     - `size` - (Optional) The disk size in gigabytes (defaults to `8`).
     - `speed` - (Optional) The speed limits.
+        - `iops_read` - (Optional) The maximum read I/O in operations per second.
+        - `iops_read_burstable` - (Optional) The maximum unthrottled read I/O pool in operations per second.
+        - `iops_write` - (Optional) The maximum write I/O in operations per second.
+        - `iops_write_burstable` - (Optional) The maximum unthrottled write I/O pool in operations per second.
         - `read` - (Optional) The maximum read speed in megabytes per second.
         - `read_burstable` - (Optional) The maximum burstable read speed in
             megabytes per second.
@@ -397,23 +412,23 @@ output "ubuntu_vm_public_key" {
     it (defaults to `false`).
 - `name` - (Optional) The virtual machine name.
 - `network_device` - (Optional) A network device (multiple blocks supported).
-    - `bridge` - (Optional) The name of the network bridge (defaults
-        to `vmbr0`).
-    - `enabled` - (Optional) Whether to enable the network device (defaults
-        to `true`).
-    - `firewall` - (Optional) Whether this interface's firewall rules should be
-        used (defaults to `false`).
+    - `bridge` - (Optional) The name of the network bridge (defaults to `vmbr0`).
+    - `disconnected` - (Optional) Whether to disconnect the network device from the network (defaults to `false`).
+    - `enabled` - (Optional) Whether to enable the network device (defaults to `true`).
+    - `firewall` - (Optional) Whether this interface's firewall rules should be used (defaults to `false`).
     - `mac_address` - (Optional) The MAC address.
     - `model` - (Optional) The network device model (defaults to `virtio`).
         - `e1000` - Intel E1000.
         - `rtl8139` - Realtek RTL8139.
         - `virtio` - VirtIO (paravirtualized).
         - `vmxnet3` - VMware vmxnet3.
-    - `mtu` - (Optional) Force MTU, for VirtIO only. Set to 1 to use the bridge
-        MTU. Cannot be larger than the bridge MTU.
+    - `mtu` - (Optional) Force MTU, for VirtIO only. Set to 1 to use the bridge MTU. Cannot be larger than the bridge MTU.
     - `queues` - (Optional) The number of queues for VirtIO (1..64).
     - `rate_limit` - (Optional) The rate limit in megabytes per second.
     - `vlan_id` - (Optional) The VLAN identifier.
+    - `trunks` - (Optional) String containing a `;` separated list of VLAN trunks
+        ("10;20;30"). Note that the VLAN-aware feature need to be enabled on the PVE
+        Linux Bridge to use trunks.
 - `node_name` - (Required) The name of the node to assign the virtual machine
     to.
 - `on_boot` - (Optional) Specifies whether a VM will be started during system
@@ -433,10 +448,9 @@ output "ubuntu_vm_public_key" {
         - `win11` - Windows 11
         - `wvista` - Windows Vista.
         - `wxp` - Windows XP.
-- `pool_id` - (Optional) The identifier for a pool to assign the virtual machine
-    to.
-- `reboot` - (Optional) Reboot the VM after initial creation. (defaults
-    to `false`)
+- `pool_id` - (Optional) The identifier for a pool to assign the virtual machine to.
+- `protection` - (Optional) Sets the protection flag of the VM. This will disable the remove VM and remove disk operations (defaults to `false`).
+- `reboot` - (Optional) Reboot the VM after initial creation. (defaults to `false`)
 - `serial_device` - (Optional) A serial device (multiple blocks supported).
     - `device` - (Optional) The device (defaults to `socket`).
         - `/dev/*` - A host serial device.
@@ -462,10 +476,10 @@ output "ubuntu_vm_public_key" {
 - `startup` - (Optional) Defines startup and shutdown behavior of the VM.
     - `order` - (Required) A non-negative number defining the general startup
         order.
-    - `up` - (Optional) A non-negative number defining the delay in seconds
-        before the next VM is started.
-    - `down` - (Optional) A non-negative number defining the delay in seconds
-        before the next VM is shut down.
+    - `up_delay` - (Optional) A non-negative number defining the delay in
+        seconds before the next VM is started.
+    - `down_delay` - (Optional) A non-negative number defining the delay in
+        seconds before the next VM is shut down.
 - `tablet_device` - (Optional) Whether to enable the USB tablet device (defaults
     to `true`).
 - `tags` - (Optional) A list of tags of the VM. This is only meta information (

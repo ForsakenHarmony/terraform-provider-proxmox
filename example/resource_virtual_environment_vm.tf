@@ -14,6 +14,7 @@ resource "proxmox_virtual_environment_vm" "example_template" {
     cores = 2
     numa  = true
     limit = 64
+    # affinity = "0-1"
   }
 
   smbios {
@@ -75,7 +76,7 @@ resource "proxmox_virtual_environment_vm" "example_template" {
         address = "dhcp"
       }
       # ipv6 {
-      #    address = "dhcp" 
+      #    address = "dhcp"
       #}
     }
 
@@ -148,6 +149,7 @@ resource "proxmox_virtual_environment_vm" "example" {
   }
 
   initialization {
+    datastore_id = local.datastore_id
     // if unspecified:
     //   - autodetected if there is a cloud-init device on the template
     //   - otherwise defaults to ide2

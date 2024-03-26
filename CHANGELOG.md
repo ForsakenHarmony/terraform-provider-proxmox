@@ -1,5 +1,143 @@
 # Changelog
 
+## [0.50.0](https://github.com/bpg/terraform-provider-proxmox/compare/v0.49.0...v0.50.0) (2024-03-21)
+
+
+### Features
+
+* **lxc:** add configurable timeout for container creation ([#1146](https://github.com/bpg/terraform-provider-proxmox/issues/1146)) ([84440d8](https://github.com/bpg/terraform-provider-proxmox/commit/84440d8329c607d7a1fd7ced8a078251cf23908c))
+* **lxc:** support hook script for LXC ([#1140](https://github.com/bpg/terraform-provider-proxmox/issues/1140)) ([0deaf18](https://github.com/bpg/terraform-provider-proxmox/commit/0deaf1801ade7896500c43d4903a69ee5da240a3))
+* **vm:** add support for `disconnected` attribute in network interface ([#1129](https://github.com/bpg/terraform-provider-proxmox/issues/1129)) ([11ca880](https://github.com/bpg/terraform-provider-proxmox/commit/11ca880f28b68c7beec1feb7e9dc7a6fbf00bf40))
+
+
+### Bug Fixes
+
+* **docs:** fix `sudo` configuration steps ([#1132](https://github.com/bpg/terraform-provider-proxmox/issues/1132)) ([0c6ecb8](https://github.com/bpg/terraform-provider-proxmox/commit/0c6ecb85ed0cc236db13874f87bf5f1b17c6c933))
+* **docs:** typo in `container.console` attribute `mode` -&gt; `type` ([#1133](https://github.com/bpg/terraform-provider-proxmox/issues/1133)) ([5cd6b4a](https://github.com/bpg/terraform-provider-proxmox/commit/5cd6b4acdfd4777fb7eaa48b74328284a88e53ec))
+* **examples:** `datastore_id` is missing in `initialization` block for vm ([#1136](https://github.com/bpg/terraform-provider-proxmox/issues/1136)) ([6a5becc](https://github.com/bpg/terraform-provider-proxmox/commit/6a5beccf9133c3c8306be37d6812f90f97508799))
+
+
+### Miscellaneous
+
+* **deps:** bump github.com/docker/docker from 24.0.7+incompatible to 24.0.9+incompatible in /tools ([#1142](https://github.com/bpg/terraform-provider-proxmox/issues/1142)) ([f4c80ad](https://github.com/bpg/terraform-provider-proxmox/commit/f4c80ad297c11e139d7a0b2bb851b00dd02b7ff7))
+* **deps:** update golang.org/x/exp digest (814bf88 → c7f7c64) ([#1130](https://github.com/bpg/terraform-provider-proxmox/issues/1130)) ([ab51262](https://github.com/bpg/terraform-provider-proxmox/commit/ab512622f7f21bbfcbae48793cf9d0b24af5c2d5))
+* **deps:** update golang.org/x/exp digest (c7f7c64 → a85f2c6) ([#1139](https://github.com/bpg/terraform-provider-proxmox/issues/1139)) ([6f8a472](https://github.com/bpg/terraform-provider-proxmox/commit/6f8a472981a3d1f478f9a0fd44abb83f2e19d641))
+* **vm:** refactoring: extract network device code from vm.go ([#1127](https://github.com/bpg/terraform-provider-proxmox/issues/1127)) ([29b5438](https://github.com/bpg/terraform-provider-proxmox/commit/29b5438faf7c1d09291c549516ac359952e2a87b))
+
+## [0.49.0](https://github.com/bpg/terraform-provider-proxmox/compare/v0.48.4...v0.49.0) (2024-03-15)
+
+
+### Features
+
+* **vm:** add support for `protection` attribute ([#1126](https://github.com/bpg/terraform-provider-proxmox/issues/1126)) ([cea65a8](https://github.com/bpg/terraform-provider-proxmox/commit/cea65a8a129168581451ecda5b84be8ddd2e3a3e))
+* **vm:** add support for disk `aio`, `backup`, `iops*` attributes ([#1124](https://github.com/bpg/terraform-provider-proxmox/issues/1124)) ([014b59e](https://github.com/bpg/terraform-provider-proxmox/commit/014b59e04f30fc08bc512f68cf471fe2cfdc481c))
+
+
+### Miscellaneous
+
+* **deps:** bump google.golang.org/protobuf from 1.31.0 to 1.33.0 in /tools ([#1121](https://github.com/bpg/terraform-provider-proxmox/issues/1121)) ([1ffc40b](https://github.com/bpg/terraform-provider-proxmox/commit/1ffc40b77ae6d76c8eccf64373ef982e2b14f4d1))
+* **deps:** update module github.com/skeema/knownhosts (v1.2.1 → v1.2.2) ([#1123](https://github.com/bpg/terraform-provider-proxmox/issues/1123)) ([732f018](https://github.com/bpg/terraform-provider-proxmox/commit/732f0188d798fc082fcc01312b41a9f5ded2ae0c))
+
+## [0.48.4](https://github.com/bpg/terraform-provider-proxmox/compare/v0.48.3...v0.48.4) (2024-03-13)
+
+
+### Bug Fixes
+
+* **ci:** missing releases from HashiCorp Registry ([#1118](https://github.com/bpg/terraform-provider-proxmox/issues/1118)) ([ffc64d2](https://github.com/bpg/terraform-provider-proxmox/commit/ffc64d209a392afb3198acee3ee5449b7392e579))
+
+## [0.48.3](https://github.com/bpg/terraform-provider-proxmox/compare/v0.48.2...v0.48.3) (2024-03-12)
+
+
+### Bug Fixes
+
+* **provider:** EOF error when closing SSH session ([#1113](https://github.com/bpg/terraform-provider-proxmox/issues/1113)) ([b63f1b7](https://github.com/bpg/terraform-provider-proxmox/commit/b63f1b7889287558510526f8392cfdaa9d22524b))
+* **vm:** timeout when resizing a disk during clone ([#1103](https://github.com/bpg/terraform-provider-proxmox/issues/1103)) ([449f9fc](https://github.com/bpg/terraform-provider-proxmox/commit/449f9fc31c0d737d2094b4c0db7a207b3e764122))
+
+
+### Miscellaneous
+
+* **ci:** update google-github-actions/release-please-action action (v4.0.2 → v4.1.0) ([#1115](https://github.com/bpg/terraform-provider-proxmox/issues/1115)) ([04e7421](https://github.com/bpg/terraform-provider-proxmox/commit/04e74219e3cac4805c3ae9cedced42f7f64ed461))
+* **deps:** update module github.com/hashicorp/terraform-plugin-go (v0.22.0 → v0.22.1) ([#1114](https://github.com/bpg/terraform-provider-proxmox/issues/1114)) ([a059728](https://github.com/bpg/terraform-provider-proxmox/commit/a0597289b56219a07ece3296e587a8317b1251e9))
+* **docs:** update terraform local (2.4.1 → 2.5.1) ([#1116](https://github.com/bpg/terraform-provider-proxmox/issues/1116)) ([29d60f5](https://github.com/bpg/terraform-provider-proxmox/commit/29d60f593232f08440f7e2c9426d12c24eacd572))
+* minor cleanups and doc updates ([#1108](https://github.com/bpg/terraform-provider-proxmox/issues/1108)) ([27dbcad](https://github.com/bpg/terraform-provider-proxmox/commit/27dbcad5cdd732a4777e886806c5eeb1a06129a4))
+
+## [0.48.2](https://github.com/bpg/terraform-provider-proxmox/compare/v0.48.1...v0.48.2) (2024-03-09)
+
+
+### Bug Fixes
+
+* **network:** multiple fixes to `network_linux_bridge` resource ([#1095](https://github.com/bpg/terraform-provider-proxmox/issues/1095)) ([4aed7cb](https://github.com/bpg/terraform-provider-proxmox/commit/4aed7cb085c87aed68f3dc426644a9d76c075db1))
+* **provider:** allow LDAP realm API tokens ([#1101](https://github.com/bpg/terraform-provider-proxmox/issues/1101)) ([461321c](https://github.com/bpg/terraform-provider-proxmox/commit/461321cf5e15dfd1b89a506ecf6a410e24bc8c5d))
+
+
+### Miscellaneous
+
+* **deps:** bump gopkg.in/go-jose/go-jose.v2 from 2.6.1 to 2.6.3 in /tools ([#1102](https://github.com/bpg/terraform-provider-proxmox/issues/1102)) ([4bc7b29](https://github.com/bpg/terraform-provider-proxmox/commit/4bc7b291fe9cedd41eb0a1c26107ff77710cf517))
+* **deps:** update github.com/hashicorp/terraform-plugin-* ([#1096](https://github.com/bpg/terraform-provider-proxmox/issues/1096)) ([4cac320](https://github.com/bpg/terraform-provider-proxmox/commit/4cac320ff9008b1274a944af4a6b3b302af276e0))
+* **deps:** update module golang.org/x/crypto (v0.20.0 → v0.21.0) ([#1097](https://github.com/bpg/terraform-provider-proxmox/issues/1097)) ([3b9739a](https://github.com/bpg/terraform-provider-proxmox/commit/3b9739ab5986acc4e0b25772704ce57d20818384))
+* **deps:** update module golang.org/x/net (v0.21.0 → v0.22.0) ([#1105](https://github.com/bpg/terraform-provider-proxmox/issues/1105)) ([7dea6f6](https://github.com/bpg/terraform-provider-proxmox/commit/7dea6f6ee8d3d8b5ff8027eea388c62a559ef4d6))
+
+## [0.48.1](https://github.com/bpg/terraform-provider-proxmox/compare/v0.48.0...v0.48.1) (2024-03-05)
+
+
+### Bug Fixes
+
+* **ci:** TestAccResourceVMNetwork acc test fails when run on CI ([#1092](https://github.com/bpg/terraform-provider-proxmox/issues/1092)) ([61a0fcd](https://github.com/bpg/terraform-provider-proxmox/commit/61a0fcd936c3c88e6eb0b7b5d5517795b4c3c092))
+* **docs:** fix wrong startup delay attributes ([#1088](https://github.com/bpg/terraform-provider-proxmox/issues/1088)) ([85705fd](https://github.com/bpg/terraform-provider-proxmox/commit/85705fdd51b5e64662bea169d86922ff85f062cb))
+
+
+### Miscellaneous
+
+* **deps:** update tools ([#1017](https://github.com/bpg/terraform-provider-proxmox/issues/1017)) ([fbd04ed](https://github.com/bpg/terraform-provider-proxmox/commit/fbd04ed95061f23747e4bb7224901f6a409f7547))
+* **docs:** minor improvements around SSH private key usage ([#1091](https://github.com/bpg/terraform-provider-proxmox/issues/1091)) ([171dd2f](https://github.com/bpg/terraform-provider-proxmox/commit/171dd2f234b7e1effe00bbe66bc42c30f78f9e2d))
+
+## [0.48.0](https://github.com/bpg/terraform-provider-proxmox/compare/v0.47.0...v0.48.0) (2024-03-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* **file:** snippets upload using SSH input stream ([#1085](https://github.com/bpg/terraform-provider-proxmox/issues/1085))
+
+### Features
+
+* **file:** snippets upload using SSH input stream ([#1085](https://github.com/bpg/terraform-provider-proxmox/issues/1085)) ([3195b3c](https://github.com/bpg/terraform-provider-proxmox/commit/3195b3cdf4c7c9d0c9e23177b4bd097de3b1fa65))
+* **provider:** add support for private key authentication for SSH ([#1076](https://github.com/bpg/terraform-provider-proxmox/issues/1076)) ([2c6d3ad](https://github.com/bpg/terraform-provider-proxmox/commit/2c6d3ad01d7b6882597415d032380cd32cbaa68f))
+* **vm:** add `VLAN` trunk support ([#1086](https://github.com/bpg/terraform-provider-proxmox/issues/1086)) ([cb5fc27](https://github.com/bpg/terraform-provider-proxmox/commit/cb5fc279cd44de9b9782aff5749a771975f72f51))
+
+
+### Miscellaneous
+
+* **ci:** setup acceptance tests ([#1071](https://github.com/bpg/terraform-provider-proxmox/issues/1071)) ([0bf42d5](https://github.com/bpg/terraform-provider-proxmox/commit/0bf42d52e5af26c423730bd5c339bd295abf2533))
+* **ci:** split acceptance tests into a separate workflow ([#1084](https://github.com/bpg/terraform-provider-proxmox/issues/1084)) ([e38b45f](https://github.com/bpg/terraform-provider-proxmox/commit/e38b45f033a147f216228df0bf9a527665bbd808))
+* **ci:** update actions/create-github-app-token action (v1.8.1 → v1.9.0) ([66ec9f4](https://github.com/bpg/terraform-provider-proxmox/commit/66ec9f4b9b027eb963be6b9d1e8a56c6a4610fc4))
+* **ci:** update dorny/paths-filter action (v3.0.1 → v3.0.2) ([3d6cc75](https://github.com/bpg/terraform-provider-proxmox/commit/3d6cc75107c52d8eb42a46e83cd21673770968be))
+* **deps:** update github.com/hashicorp/terraform-plugin-* ([#1078](https://github.com/bpg/terraform-provider-proxmox/issues/1078)) ([2398f6c](https://github.com/bpg/terraform-provider-proxmox/commit/2398f6c339c891d78eae501648c673af470793a8))
+* **deps:** update module github.com/brianvoe/gofakeit/v7 (v7.0.1 → v7.0.2) ([#1080](https://github.com/bpg/terraform-provider-proxmox/issues/1080)) ([0d4740f](https://github.com/bpg/terraform-provider-proxmox/commit/0d4740fb90dad40c16994269e03de8b73ffee5dd))
+* **deps:** update module github.com/stretchr/testify (v1.8.4 → v1.9.0) ([#1081](https://github.com/bpg/terraform-provider-proxmox/issues/1081)) ([dbd1655](https://github.com/bpg/terraform-provider-proxmox/commit/dbd1655974b31f1fae1f4c02766ef35cca77fa1e))
+* **deps:** update module golang.org/x/crypto (v0.19.0 → v0.20.0) ([#1082](https://github.com/bpg/terraform-provider-proxmox/issues/1082)) ([e3ddd6f](https://github.com/bpg/terraform-provider-proxmox/commit/e3ddd6f5fa70728607849077fdc426d71bcf2338))
+* switch to `terraform-plugin-testing` for acceptance tests ([#1067](https://github.com/bpg/terraform-provider-proxmox/issues/1067)) ([14fce33](https://github.com/bpg/terraform-provider-proxmox/commit/14fce3366da5cf3bca04511535a2898026c3210c))
+
+## [0.47.0](https://github.com/bpg/terraform-provider-proxmox/compare/v0.46.6...v0.47.0) (2024-02-27)
+
+
+### Features
+
+* **file:** add `overwrite_unmanaged` attribute to `virtual_environment_download_file` resource ([#1064](https://github.com/bpg/terraform-provider-proxmox/issues/1064)) ([c64fcd2](https://github.com/bpg/terraform-provider-proxmox/commit/c64fcd2948bf6ffbcf6c907fb3f15931a5595596))
+
+
+### Bug Fixes
+
+* **provider:** race condition in`~/.ssh` path existence check ([#1052](https://github.com/bpg/terraform-provider-proxmox/issues/1052)) ([f7f67db](https://github.com/bpg/terraform-provider-proxmox/commit/f7f67dbd3d3edb2b6e092b77c898962d7641256f))
+* **user:** `expiration_date` attribute handling ([#1066](https://github.com/bpg/terraform-provider-proxmox/issues/1066)) ([3c52760](https://github.com/bpg/terraform-provider-proxmox/commit/3c5276093a6edc2282512aa8a489b7d5ad4eee51))
+
+
+### Miscellaneous
+
+* **ci:** update actions/create-github-app-token action (v1.8.0 → v1.8.1) ([#1063](https://github.com/bpg/terraform-provider-proxmox/issues/1063)) ([9b52c12](https://github.com/bpg/terraform-provider-proxmox/commit/9b52c127ba11a4e01f7d63e2b1d06d7090cbadcb))
+* **deps:** update golang.org/x/exp digest (v0.0.0-20240213143201-ec583247a57a → ) ([#1057](https://github.com/bpg/terraform-provider-proxmox/issues/1057)) ([4959480](https://github.com/bpg/terraform-provider-proxmox/commit/4959480f02f08354bfc009128ddc33c25aa22cae))
+* **deps:** update module github.com/brianvoe/gofakeit/v7 (v7.0.0 → v7.0.1) ([#1058](https://github.com/bpg/terraform-provider-proxmox/issues/1058)) ([190ec39](https://github.com/bpg/terraform-provider-proxmox/commit/190ec39234bbe9a2d51f8cafa343dfa66df88e66))
+* **vm:** refactor: move disks code out of vm.go ([#1062](https://github.com/bpg/terraform-provider-proxmox/issues/1062)) ([493ad1c](https://github.com/bpg/terraform-provider-proxmox/commit/493ad1c1219e666e61e05a6ad50a5fe746b4a69c))
+
 ## [0.46.6](https://github.com/bpg/terraform-provider-proxmox/compare/v0.46.5...v0.46.6) (2024-02-21)
 
 

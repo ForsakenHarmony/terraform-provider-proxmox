@@ -29,7 +29,7 @@ func TestFileInstantiation(t *testing.T) {
 func TestFileSchema(t *testing.T) {
 	t.Parallel()
 
-	s := File()
+	s := File().Schema
 
 	test.AssertRequiredArguments(t, s, []string{
 		mkResourceVirtualEnvironmentFileDatastoreID,
@@ -124,7 +124,6 @@ func Test_fileParseVolumeID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -167,7 +166,6 @@ func Test_fileParseImportID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

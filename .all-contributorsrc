@@ -385,7 +385,9 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/72123?v=4",
       "profile": "https://michael.franzl.name",
       "contributions": [
-        "bug"
+        "bug",
+        "code",
+        "test"
       ]
     },
     {
@@ -881,6 +883,88 @@
       "name": "Fabian Franz",
       "avatar_url": "https://avatars.githubusercontent.com/u/10672940?v=4",
       "profile": "https://github.com/FabFaeb",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "s-vincent",
+      "name": "Sebastien Vincent",
+      "avatar_url": "https://avatars.githubusercontent.com/u/745464?v=4",
+      "profile": "https://github.com/s-vincent",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "jackhodgkiss",
+      "name": "Jack Hodgkiss",
+      "avatar_url": "https://avatars.githubusercontent.com/u/52131498?v=4",
+      "profile": "https://github.com/jackhodgkiss",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "marvkos",
+      "name": "marvkos",
+      "avatar_url": "https://avatars.githubusercontent.com/u/87067609?v=4",
+      "profile": "https://github.com/marvkos",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "Koloss5421",
+      "name": "Koloss5421",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26049477?v=4",
+      "profile": "https://github.com/Koloss5421",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "samhug",
+      "name": "Sam Hug",
+      "avatar_url": "https://avatars.githubusercontent.com/u/171470?v=4",
+      "profile": "https://sa.m-h.ug/",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "dyadMisha",
+      "name": "dyadMisha",
+      "avatar_url": "https://avatars.githubusercontent.com/u/37950256?v=4",
+      "profile": "https://github.com/dyadMisha",
+      "contributions": [
+        "test"
+      ]
+    },
+    {
+      "login": "msdnna",
+      "name": "msdnna",
+      "avatar_url": "https://avatars.githubusercontent.com/u/11697271?v=4",
+      "profile": "https://github.com/msdnna",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "soubinan",
+      "name": "Soubinan KACOU",
+      "avatar_url": "https://avatars.githubusercontent.com/u/20760371?v=4",
+      "profile": "https://github.com/soubinan",
+      "contributions": [
+        "bug",
+        "code"
+      ]
+    },
+    {
+      "login": "sergelogvinov",
+      "name": "Serge",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5407715?v=4",
+      "profile": "https://github.com/sergelogvinov",
       "contributions": [
         "code"
       ]

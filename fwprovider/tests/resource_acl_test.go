@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-//nolint:paralleltest
 func TestAccAcl_User(t *testing.T) {
 	resourceName := "proxmox_virtual_environment_acl.test"
 

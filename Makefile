@@ -1,7 +1,7 @@
 NAME=terraform-provider-proxmox
 TARGETS=darwin linux windows
 TERRAFORM_PLUGIN_EXTENSION=
-VERSION=0.46.6# x-release-please-version
+VERSION=0.50.0# x-release-please-version
 
 # check if opentofu is installed and use it if it is,
 # otherwise use terraform
@@ -95,10 +95,10 @@ test:
 .PHONY: testacc
 testacc:
 	@# explicitly add TF_ACC=1 to trigger the acceptance tests, `testacc.env` might be missing or incomplete
-	@TF_ACC=1 env $$(cat testacc.env | xargs) go test ./...
+	@TF_ACC=1 env $$(cat testacc.env | xargs) go test -count=1 -v github.com/bpg/terraform-provider-proxmox/fwprovider/tests/...
 
 TEST_COUNT?=1
-PKG_NAME=fwprovider/...
+PKG_NAME=fwprovider/tests/...
 ACCTEST_TIMEOUT?=180m
 ACCTEST_PARALLELISM?=20
 

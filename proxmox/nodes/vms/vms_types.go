@@ -89,16 +89,16 @@ type CustomEFIDisk struct {
 
 // CustomNetworkDevice handles QEMU network device parameters.
 type CustomNetworkDevice struct {
-	Model      string            `json:"model"               url:"model"`
-	Bridge     *string           `json:"bridge,omitempty"    url:"bridge,omitempty"`
 	Enabled    bool              `json:"-"                   url:"-"`
+	Bridge     *string           `json:"bridge,omitempty"    url:"bridge,omitempty"`
 	Firewall   *types.CustomBool `json:"firewall,omitempty"  url:"firewall,omitempty,int"`
 	LinkDown   *types.CustomBool `json:"link_down,omitempty" url:"link_down,omitempty,int"`
 	MACAddress *string           `json:"macaddr,omitempty"   url:"macaddr,omitempty"`
+	MTU        *int              `json:"mtu,omitempty"       url:"mtu,omitempty"`
+	Model      string            `json:"model"               url:"model"`
 	Queues     *int              `json:"queues,omitempty"    url:"queues,omitempty"`
 	RateLimit  *float64          `json:"rate,omitempty"      url:"rate,omitempty"`
 	Tag        *int              `json:"tag,omitempty"       url:"tag,omitempty"`
-	MTU        *int              `json:"mtu,omitempty"       url:"mtu,omitempty"`
 	Trunks     []int             `json:"trunks,omitempty"    url:"trunks,omitempty"`
 }
 
@@ -236,9 +236,10 @@ type CreateRequestBody struct {
 	CPULimit             *int                           `json:"cpulimit,omitempty"           url:"cpulimit,omitempty"`
 	CPUSockets           *int                           `json:"sockets,omitempty"            url:"sockets,omitempty"`
 	CPUUnits             *int                           `json:"cpuunits,omitempty"           url:"cpuunits,omitempty"`
+	CPUAffinity          *string                        `json:"affinity,omitempty"           url:"affinity,omitempty"`
 	DedicatedMemory      *int                           `json:"memory,omitempty"             url:"memory,omitempty"`
 	Delete               []string                       `json:"delete,omitempty"             url:"delete,omitempty,comma"`
-	DeletionProtection   *types.CustomBool              `json:"protection,omitempty"         url:"force,omitempty,int"`
+	DeletionProtection   *types.CustomBool              `json:"protection,omitempty"         url:"protection,omitempty,int"`
 	Description          *string                        `json:"description,omitempty"        url:"description,omitempty"`
 	EFIDisk              *CustomEFIDisk                 `json:"efidisk0,omitempty"           url:"efidisk0,omitempty"`
 	FloatingMemory       *int                           `json:"balloon,omitempty"            url:"balloon,omitempty"`
@@ -364,6 +365,7 @@ type GetResponseData struct {
 	CPULimit             *types.CustomInt                `json:"cpulimit,omitempty"`
 	CPUSockets           *int                            `json:"sockets,omitempty"`
 	CPUUnits             *int                            `json:"cpuunits,omitempty"`
+	CPUAffinity          *string                         `json:"affinity,omitempty"`
 	DedicatedMemory      *types.CustomInt64              `json:"memory,omitempty"`
 	DeletionProtection   *types.CustomBool               `json:"protection,omitempty"`
 	Description          *string                         `json:"description,omitempty"`
@@ -1827,10 +1829,55 @@ func (d *CustomStorageDevice) UnmarshalJSON(b []byte) error {
 
 			case "backup":
 				bv := types.CustomBool(v[1] == "1")
-				d.BackupEnabled = &bv
+				d.Backup = &bv
+
+			case "cache":
+				d.Cache = &v[1]
+
+			case "discard":
+				d.Discard = &v[1]
 
 			case "file":
 				d.FileVolume = v[1]
+
+			case "format":
+				d.Format = &v[1]
+
+			case "iops_rd":
+				iv, err := strconv.Atoi(v[1])
+				if err != nil {
+					return fmt.Errorf("failed to convert iops_rd to int: %w", err)
+				}
+
+				d.IopsRead = &iv
+
+			case "iops_rd_max":
+				iv, err := strconv.Atoi(v[1])
+				if err != nil {
+					return fmt.Errorf("failed to convert iops_rd_max to int: %w", err)
+				}
+
+				d.MaxIopsRead = &iv
+
+			case "iops_wr":
+				iv, err := strconv.Atoi(v[1])
+				if err != nil {
+					return fmt.Errorf("failed to convert iops_wr to int: %w", err)
+				}
+
+				d.IopsWrite = &iv
+
+			case "iops_wr_max":
+				iv, err := strconv.Atoi(v[1])
+				if err != nil {
+					return fmt.Errorf("failed to convert iops_wr_max to int: %w", err)
+				}
+
+				d.MaxIopsWrite = &iv
+
+			case "iothread":
+				bv := types.CustomBool(v[1] == "1")
+				d.IOThread = &bv
 
 			case "mbps_rd":
 				iv, err := strconv.Atoi(v[1])
@@ -1839,6 +1886,7 @@ func (d *CustomStorageDevice) UnmarshalJSON(b []byte) error {
 				}
 
 				d.MaxReadSpeedMbps = &iv
+
 			case "mbps_rd_max":
 				iv, err := strconv.Atoi(v[1])
 				if err != nil {
@@ -1846,6 +1894,7 @@ func (d *CustomStorageDevice) UnmarshalJSON(b []byte) error {
 				}
 
 				d.BurstableReadSpeedMbps = &iv
+
 			case "mbps_wr":
 				iv, err := strconv.Atoi(v[1])
 				if err != nil {
@@ -1853,6 +1902,7 @@ func (d *CustomStorageDevice) UnmarshalJSON(b []byte) error {
 				}
 
 				d.MaxWriteSpeedMbps = &iv
+
 			case "mbps_wr_max":
 				iv, err := strconv.Atoi(v[1])
 				if err != nil {
@@ -1860,8 +1910,13 @@ func (d *CustomStorageDevice) UnmarshalJSON(b []byte) error {
 				}
 
 				d.BurstableWriteSpeedMbps = &iv
+
 			case "media":
 				d.Media = &v[1]
+
+			case "replicate":
+				bv := types.CustomBool(v[1] == "1")
+				d.Replicate = &bv
 
 			case "size":
 				d.Size = new(types.DiskSize)
@@ -1871,22 +1926,9 @@ func (d *CustomStorageDevice) UnmarshalJSON(b []byte) error {
 					return fmt.Errorf("failed to unmarshal disk size: %w", err)
 				}
 
-			case "format":
-				d.Format = &v[1]
-
-			case "iothread":
-				bv := types.CustomBool(v[1] == "1")
-				d.IOThread = &bv
-
 			case "ssd":
 				bv := types.CustomBool(v[1] == "1")
 				d.SSD = &bv
-
-			case "discard":
-				d.Discard = &v[1]
-
-			case "cache":
-				d.Cache = &v[1]
 			}
 		}
 	}

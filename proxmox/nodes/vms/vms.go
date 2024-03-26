@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -35,7 +36,7 @@ func (c *Client) CloneVM(ctx context.Context, retries int, d *CloneRequestBody, 
 		retries = 1
 	}
 
-	for i := 0; i < retries; i++ {
+	err = retry.Do(func() error {
 		err = c.DoRequest(ctx, http.MethodPost, c.ExpandPath("clone"), d, resBody)
 		if err != nil {
 			return fmt.Errorf("error cloning VM: %w", err)
@@ -45,14 +46,8 @@ func (c *Client) CloneVM(ctx context.Context, retries int, d *CloneRequestBody, 
 			return api.ErrNoDataObjectInResponse
 		}
 
-		err = c.Tasks().WaitForTask(ctx, *resBody.Data, timeout, 5*time.Second)
-		if err == nil {
-			return nil
-		}
-
-		time.Sleep(10 * time.Second)
-	}
-
+		return c.Tasks().WaitForTask(ctx, *resBody.Data, timeout, 5*time.Second)
+	}, retry.Attempts(uint(retries)), retry.Delay(10*time.Second))
 	if err != nil {
 		return fmt.Errorf("error waiting for VM clone: %w", err)
 	}
@@ -265,12 +260,21 @@ func (c *Client) RebootVMAsync(ctx context.Context, d *RebootRequestBody) (*stri
 
 // ResizeVMDisk resizes a virtual machine disk.
 func (c *Client) ResizeVMDisk(ctx context.Context, d *ResizeDiskRequestBody, timeout time.Duration) error {
-	taskID, err := c.ResizeVMDiskAsync(ctx, d)
-	if err != nil {
-		return err
-	}
+	err := retry.Do(func() error {
+		taskID, err := c.ResizeVMDiskAsync(ctx, d)
+		if err != nil {
+			return err
+		}
 
-	err = c.Tasks().WaitForTask(ctx, *taskID, timeout, 5)
+		return c.Tasks().WaitForTask(ctx, *taskID, timeout, 5)
+	},
+		retry.Attempts(3),
+		retry.Delay(1*time.Second),
+		retry.LastErrorOnly(false),
+		retry.RetryIf(func(err error) bool {
+			return strings.Contains(err.Error(), "got timeout")
+		}),
+	)
 	if err != nil {
 		return fmt.Errorf("error waiting for VM disk resize: %w", err)
 	}
