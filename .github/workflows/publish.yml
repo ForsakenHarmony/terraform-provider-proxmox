@@ -10,8 +10,8 @@ name: Publish Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -20,20 +20,45 @@ jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
+      - name: create tag
+        uses: actions/github-script@v5
+        with:
+          script: |
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/v0.0.0-canary.${context.sha.slice(0, 8)}`,
+              sha: context.sha
+            })
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Filter paths
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            go:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'tools/go.mod'
+              - '.github/workflows/publish.yml'
+
       - name: Import GPG key
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@01dd5d3ca463c7f10f7f4f7b4f177225ac661ee4 #v6.1.0
+        if: steps.filter.outputs.go == 'true'
         with:
           gpg_private_key: "${{ secrets.GPG_PRIVATE_KEY }}"
           passphrase: "${{ secrets.PASSPHRASE }}"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@7ec5c2b0c6cdda6e8bbb49444bc797dd33d74dd8 #v5.0.0
+        if: steps.filter.outputs.go == 'true'
         with:
           version: latest
           args: release --clean
